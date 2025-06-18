@@ -43,11 +43,15 @@ export default function OrdersPage() {
           'created_timestamp_est',
           'user_id',
           'model_run_id',
+          'output_image_url',
           // Physical mail orders columns (with pmo_ prefix)
           'pmo_shipping_address',
           'pmo_status',
           'pmo_order_number',
-          'pmo_email'
+          'pmo_email',
+          'pmo_output_image_url',
+          // Model runs columns (with mr_ prefix)
+          'mr_output_image_url'
         ];
         setVisibleColumns(defaultColumns);
       } catch (error) {
@@ -179,25 +183,25 @@ export default function OrdersPage() {
       case 'payment_source':
         return (
           <Badge className={getPaymentSourceColor(value as string)}>
-            {truncateText(value || '-')}
+            <PopoverCutoffText text={value || '-'} />
           </Badge>
         );
       case 'pack_type':
         return (
           <Badge className="bg-purple-100 text-purple-800">
-            {truncateText(value || '-')}
+            <PopoverCutoffText text={value || '-'} />
           </Badge>
         );
       case 'pmo_status':
         return (
           <Badge className="bg-orange-100 text-orange-800">
-            {truncateText(value || '-')}
+            <PopoverCutoffText text={value || '-'} />
           </Badge>
         );
       case 'mr_status':
         return (
           <Badge className="bg-green-100 text-green-800">
-            {truncateText(value || '-')}
+            <PopoverCutoffText text={value || '-'} />
           </Badge>
         );
       case 'payload':
@@ -209,9 +213,9 @@ export default function OrdersPage() {
       case 'mr_metadata':
       case 'mr_output_images':
         const payloadStr = value ? JSON.stringify(value) : '-';
-        return <div className="text-xs font-mono whitespace-nowrap overflow-hidden text-ellipsis">{truncateText(payloadStr)}</div>;
+        return <PopoverCutoffText text={payloadStr} className="text-xs font-mono whitespace-nowrap" />;
       case 'created_timestamp':
-        if (!value) return <div className="text-sm whitespace-nowrap overflow-hidden text-ellipsis">-</div>;
+        if (!value) return <PopoverCutoffText text="-" className="text-sm whitespace-nowrap" />;
         const timestamp = typeof value === 'number' ? value * 1000 : new Date(value as string).getTime();
         const formattedTimestamp = new Date(timestamp).toLocaleDateString('en-US', {
           year: 'numeric',
@@ -221,7 +225,7 @@ export default function OrdersPage() {
           minute: '2-digit',
           hour12: true
         });
-        return <div className="text-sm whitespace-nowrap overflow-hidden text-ellipsis">{truncateText(formattedTimestamp)}</div>;
+        return <PopoverCutoffText text={formattedTimestamp} className="text-sm whitespace-nowrap" />;
       case 'created_timestamp_est':
       case 'pmo_shipped_at':
       case 'pmo_delivered_at':
@@ -230,7 +234,7 @@ export default function OrdersPage() {
       case 'mr_created_at':
       case 'mr_updated_at':
         const dateFormatted = formatDate(value as string);
-        return <div className="text-sm whitespace-nowrap overflow-hidden text-ellipsis">{truncateText(dateFormatted)}</div>;
+        return <PopoverCutoffText text={dateFormatted} className="text-sm whitespace-nowrap" />;
       case 'transaction_id':
       case 'user_id':
       case 'model_run_id':
@@ -248,17 +252,13 @@ export default function OrdersPage() {
       case 'mr_error':
       case 'mr_output_image_url':
         const idText = value ? String(value) : '-';
-        return (
-          <div className="font-mono text-xs whitespace-nowrap overflow-hidden text-ellipsis">
-            {truncateText(idText)}
-          </div>
-        );
+        return <PopoverCutoffText text={idText} className="font-mono text-xs whitespace-nowrap" />;
       case 'id':
         const idValue = value ? String(value) : '-';
-        return <div className="font-mono text-sm whitespace-nowrap overflow-hidden text-ellipsis">{truncateText(idValue)}</div>;
+        return <PopoverCutoffText text={idValue} className="font-mono text-sm whitespace-nowrap" />;
       default:
         const defaultText = value ? String(value) : '-';
-        return <div className="text-sm whitespace-nowrap overflow-hidden text-ellipsis">{truncateText(defaultText)}</div>;
+        return <PopoverCutoffText text={defaultText} className="text-sm whitespace-nowrap" />;
     }
   };
 

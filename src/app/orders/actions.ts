@@ -170,6 +170,7 @@ export async function fetchModelRunsColumns(): Promise<string[]> {
 
     // Extract column names from the first row (if any data exists)
     if (data && data.length > 0) {
+      console.log('Model runs columns found:', Object.keys(data[0]));
       return Object.keys(data[0]);
     }
 
@@ -425,6 +426,24 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
     console.log('Combined records created:', combinedData?.length);
     console.log('Join matches found:', joinMatches, 'out of', stripeEvents.length, 'stripe events');
     console.log('Model run matches found:', modelRunMatches, 'out of', stripeEvents.length, 'stripe events');
+    
+    // Debug: Log first 10 records to see what data we have
+    console.log('=== FIRST 10 RECORDS (SAMPLE) ===');
+    combinedData.slice(0, 10).forEach((record, index) => {
+      console.log(`\nRecord ${index + 1}:`);
+      console.log('Stripe Event ID:', record.id);
+      console.log('Model Run ID (stripe):', record.model_run_id);
+      console.log('Model Run Data (mr_id):', record.mr_id);
+      console.log('Output Image URLs:');
+      console.log('  - stripe output_image_url:', record.output_image_url);
+      console.log('  - pmo_output_image_url:', record.pmo_output_image_url);
+      console.log('  - mr_output_image_url:', record.mr_output_image_url);
+      console.log('Other mr_ fields sample:');
+      console.log('  - mr_status:', record.mr_status);
+      console.log('  - mr_model_name:', record.mr_model_name);
+      console.log('  - mr_created_at:', record.mr_created_at);
+    });
+    
     console.log('Returning data to UI...');
     return { 
       events: combinedData as CombinedOrderEvent[], 

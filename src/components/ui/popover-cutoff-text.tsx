@@ -34,12 +34,16 @@ export function PopoverCutoffText({
     };
   }, []);
 
-  const handleMouseEnter = async () => {
+  const handleMouseEnter = () => {
     if (!needsTruncation) return;
-    
     setShowPopover(true);
-    
-    // Copy to clipboard
+  };
+
+  const handleMouseLeave = () => {
+    setShowPopover(false);
+  };
+
+  const handleClick = async () => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -53,17 +57,14 @@ export function PopoverCutoffText({
     }
   };
 
-  const handleMouseLeave = () => {
-    setShowPopover(false);
-  };
-
   return (
     <div className="relative inline-block">
       <div
         ref={textRef}
-        className={`${className} ${needsTruncation ? 'cursor-pointer' : ''}`}
+        className={`${className} cursor-pointer`}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
+        onClick={handleClick}
       >
         {displayText}
       </div>
@@ -71,17 +72,19 @@ export function PopoverCutoffText({
       {showPopover && needsTruncation && (
         <div
           ref={popoverRef}
-          className="absolute z-50 p-2 bg-gray-900 text-white text-sm rounded-md shadow-lg max-w-md break-words"
+          className="absolute z-50 bg-gray-900 text-white text-sm rounded-md shadow-lg transition-all duration-200"
           style={{
             bottom: '100%',
             left: '50%',
             transform: 'translateX(-50%) translateY(-8px)',
-            minWidth: '200px',
+            width: '300px',
+            height: 'auto',
+            padding: '12px',
+            border: copied ? '1px solid #10b981' : '1px solid transparent',
           }}
         >
-          <div className="mb-1">{text}</div>
-          <div className="text-xs text-gray-400">
-            {copied ? '✓ Copied to clipboard' : 'Copying to clipboard...'}
+          <div className="break-words" style={{ whiteSpace: 'pre-wrap' }}>
+            {text}
           </div>
           
           {/* Arrow pointing down */}
