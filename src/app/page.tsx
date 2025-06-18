@@ -48,8 +48,8 @@ export default function Home() {
           {/* Statistics Card */}
           <Card>
             <CardHeader>
-              <CardTitle>Today's Stats</CardTitle>
-              <CardDescription>Overview of today's activity</CardDescription>
+              <CardTitle>Today&apos;s Stats</CardTitle>
+              <CardDescription>Overview of today&apos;s activity</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex justify-between items-center">
