@@ -1,0 +1,58 @@
+# Cursor Rules for Print Order Admin
+
+## Project Overview
+This is a Next.js 15 admin dashboard for managing print orders for a chibi sticker generation service.
+
+## Engineering Practices
+
+### Supabase Integration Pattern
+
+#### 1. **Three Distinct Supabase Clients**
+- **`lib/supabase/admin.ts`** - Admin client with service role key for privileged operations (PRIMARY for admin tools)
+- **`lib/supabase/server.ts`** - Server client with cookie handling for user authentication (NOT NEEDED for internal admin tools)
+- **`lib/supabase/client.ts`** - Browser client for client-side operations (RARE usage)
+
+#### 2. **Server Actions Pattern**
+- All server-side Supabase calls use `"use server"` directive
+- Co-locate server actions with UI components (preferred) or in separate files
+- Use `createAdminClient()` as default for admin dashboard operations
+- No API routes for simple data fetching - use server actions instead
+
+#### 3. **Type Safety**
+- Define TypeScript interfaces for data structures (e.g., `StripeCapturedEvent`)
+- Use typed interfaces in server actions and components
+- Leverage TypeScript for compile-time safety on all queries
+- Note: For admin tools, manual type definitions are acceptable over generated types
+
+#### 4. **Error Handling**
+- Always handle Supabase errors with proper logging
+- Use simple console.error for admin tools (no complex tracking needed)
+- Graceful fallbacks for failed operations
+
+#### 5. **Data Fetching Hierarchy**
+```typescript
+// ✅ Preferred: Direct in page components
+"use server";
+export default async function SomePage() {
+  const supabase = await createAdminClient();
+  const data = await supabase.from("table").select("*");
+  return <Component data={data} />;
+}
+
+// ✅ Acceptable: Separate server action files
+"use server";
+export async function fetchData() {
+  "use server";
+  const supabase = await createAdminClient();
+  return await supabase.from("table").select("*");
+}
+```
+
+#### 6. **Admin Tool Specific Guidelines**
+- Since this is an internal admin tool with no authentication:
+  - Always use `createAdminClient()` for database operations
+  - No need for user session handling
+  - Focus on performance and developer experience over security
+  - Simple error handling with console logging
+  - Use hardcoded Supabase URL for admin tools (no local dev setup needed)
+  - Service role key via environment variables for privileged access 
