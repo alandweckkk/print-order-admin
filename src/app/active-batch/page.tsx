@@ -112,21 +112,7 @@ function OrderCard({ order, onRemove, className = "", size = 'medium' }: OrderCa
           <p className="text-xs text-gray-500 font-medium">Mailing Label</p>
         </div>
 
-        {/* Metadata */}
-        <div className="space-y-2 mb-4">
-          <div>
-            <p className="text-xs text-gray-500">Model Run ID</p>
-            <p className="text-sm font-medium">{order.modelRunId}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">Order Number</p>
-            <p className="text-sm font-medium">{order.orderNumber}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">User Email</p>
-            <p className="text-sm font-medium text-blue-600 truncate">{order.userEmail}</p>
-          </div>
-        </div>
+
 
         {/* Status and Remove Button */}
         <div className="flex items-center justify-between">
@@ -282,13 +268,7 @@ export default function ActiveBatchPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-[1500px] mx-auto">
-        {/* Header */}
-        <div className="p-4 sm:p-8 pb-4">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Active Batch</h1>
-          <p className="text-gray-600 text-base sm:text-lg">
-            You're now working on a batch of sticker orders. Review each, print labels, or remove any before production.
-          </p>
-        </div>
+
 
         {/* Sticky Top Bar */}
         <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 sm:px-8 py-4 shadow-sm">
@@ -337,39 +317,19 @@ export default function ActiveBatchPage() {
               </div>
             )}
 
-            {/* Action Buttons */}
-            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-              <Button
-                variant="outline"
-                onClick={handlePrintLabels}
-                className="border-gray-300"
-                size={isMobile ? "sm" : "default"}
-              >
-                <Printer className="h-4 w-4 mr-1 sm:mr-2" />
-                <span className="hidden sm:inline">Print Labels</span>
-                <span className="sm:hidden">Print</span>
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleExportZip}
-                className="border-gray-300"
-                size={isMobile ? "sm" : "default"}
-              >
-                <Download className="h-4 w-4 mr-1 sm:mr-2" />
-                <span className="hidden sm:inline">Export ZIP</span>
-                <span className="sm:hidden">Export</span>
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => router.push('/orders')}
-                className="border-gray-300"
-                size={isMobile ? "sm" : "default"}
-              >
-                <ArrowLeft className="h-4 w-4 mr-1 sm:mr-2" />
-                <span className="hidden sm:inline">Return to Orders</span>
-                <span className="sm:hidden">Orders</span>
-              </Button>
-            </div>
+                         {/* Action Buttons */}
+             <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+               <Button
+                 variant="outline"
+                 onClick={handlePrintLabels}
+                 className="border-gray-300"
+                 size={isMobile ? "sm" : "default"}
+               >
+                 <Printer className="h-4 w-4 mr-1 sm:mr-2" />
+                 <span className="hidden sm:inline">Print Labels</span>
+                 <span className="sm:hidden">Print</span>
+               </Button>
+             </div>
           </div>
         </div>
 
