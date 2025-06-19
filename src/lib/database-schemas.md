@@ -255,6 +255,25 @@ model_runs (id) ←→ stripe_captured_events (model_run_id)
 
 ---
 
+## 4. physical_mail_orders_retool_catch_all
+
+**Purpose**: Flexible storage for additional data fields that can be attached to any of the above records. This table uses a key-value pattern with different data type columns.
+
+**Field Mapping** (UI Name → Database Column):
+- `dashboard_status` → `text_field_1` (purpose='dashboard_status')
+- `assigned_to` → `text_field_2` (purpose='dashboard_status')  
+- `priority_level` → `integer_field_1` (purpose='dashboard_status')
+- `internal_notes` → `text_field_1` (purpose='internal_notes')
+- `custom_tags` → `json_field_1` (purpose='custom_tags')
+- `last_updated` → `updated_at` (from the most recent record)
+
+**Schema**:
+```sql
+// ... existing code ...
+```
+
+---
+
 ## Common Query Patterns
 
 ### Get Orders with User and Model Info

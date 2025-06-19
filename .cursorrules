@@ -5,12 +5,18 @@ This is a Next.js 15 admin dashboard for managing print orders for a chibi stick
 
 ## Engineering Practices
 
+### File Structure and Naming
+- Standard Next.js app directory structure
+- Server actions live in `app/<feature>/actions/<descriptive-name>.ts`
+- Action filenames should be descriptive of their purpose (e.g., `pull-orders-from-supabase.ts`)
+- When suggesting new files, explain the rationale for creating vs modifying existing files
+
 ### Supabase Integration Pattern
 
 #### 1. **Three Distinct Supabase Clients**
 - **`lib/supabase/admin.ts`** - Admin client with service role key for privileged operations (PRIMARY for admin tools)
-- **`lib/supabase/server.ts`** - Server client with cookie handling for user authentication (NOT NEEDED for internal admin tools)
-- **`lib/supabase/client.ts`** - Browser client for client-side operations (RARE usage)
+- **`lib/supabase/server.ts`** - Server client with cookie handling for user authentication (NOT NEEDED for this tool right now)
+- **`lib/supabase/client.ts`** - Browser client for client-side operations (RARE usage) 
 
 #### 2. **Server Actions Pattern**
 - All server-side Supabase calls use `"use server"` directive
@@ -55,4 +61,6 @@ export async function fetchData() {
   - Focus on performance and developer experience over security
   - Simple error handling with console logging
   - Use hardcoded Supabase URL for admin tools (no local dev setup needed)
-  - Service role key via environment variables for privileged access 
+  - Service role key via environment variables for privileged access
+
+
