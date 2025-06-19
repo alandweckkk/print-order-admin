@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Settings, Layout, FileImage } from "lucide-react";
+import { Settings, Layout, FileImage, Mail, Tag } from "lucide-react";
 
 interface MenuItem {
   label: string;
@@ -26,6 +26,18 @@ export default function Navigation() {
       path: "/sticker-layout",
       icon: Layout,
       description: "Create 3-up sticker sheets"
+    },
+    {
+      label: "Envelopes",
+      path: "/envelopes",
+      icon: Mail,
+      description: "Manage envelope templates"
+    },
+    {
+      label: "Labels",
+      path: "/labels", 
+      icon: Tag,
+      description: "Configure shipping labels"
     }
     // Add more menu items here as needed
   ];
