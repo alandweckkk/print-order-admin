@@ -1,26 +1,21 @@
-import OrdersPage from "./orders/page";
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Navigation Bar */}
-      <nav className="w-full bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Print Order Admin</h1>
-            <p className="text-sm text-gray-600">Manage your print orders efficiently</p>
-          </div>
-          <div className="flex items-center gap-4">
-            {/* Navigation items can be added here later */}
-            <span className="text-sm text-gray-500">Admin Panel</span>
-          </div>
-        </div>
-      </nav>
+  const router = useRouter();
 
-      {/* Main Content Area */}
-      <main className="w-full">
-        <OrdersPage />
-      </main>
+  useEffect(() => {
+    // Redirect to orders page on load
+    router.push("/orders");
+  }, [router]);
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="text-center">
+        <p className="text-gray-600">Redirecting to orders...</p>
+      </div>
     </div>
   );
 }

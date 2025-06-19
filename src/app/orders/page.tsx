@@ -31,6 +31,36 @@ export default function OrdersPage() {
   const [editingCell, setEditingCell] = useState<{eventId: number; field: string} | null>(null);
   const [editValue, setEditValue] = useState<any>(null);
 
+  // Add state for bulk selection
+  const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
+
+  // Handle selecting/deselecting individual items
+  const handleItemSelect = (eventId: number, checked: boolean) => {
+    setSelectedItems(prev => {
+      const newSet = new Set(prev);
+      if (checked) {
+        newSet.add(eventId);
+      } else {
+        newSet.delete(eventId);
+      }
+      return newSet;
+    });
+  };
+
+  // Handle select all/deselect all
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      const allEventIds = events.map(event => event.id);
+      setSelectedItems(new Set(allEventIds));
+    } else {
+      setSelectedItems(new Set());
+    }
+  };
+
+  // Check if all items are selected
+  const isAllSelected = events.length > 0 && selectedItems.size === events.length;
+  const isIndeterminate = selectedItems.size > 0 && selectedItems.size < events.length;
+
   // Handle saving edits
   const handleSaveEdit = async (eventId: number, field: string, value: any) => {
     const result = await updateRetoolField(eventId, field, value);
@@ -548,26 +578,25 @@ export default function OrdersPage() {
   const totalPages = Math.ceil(totalEvents / eventsPerPage);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="p-8">
       <div className="max-w-[3000px] mx-auto">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2"></h1>
-          <p className="text-gray-600"></p>
         </div>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <div className="relative">
-              <Button 
-                variant="outline"
-                size="sm"
-                onClick={() => setShowColumnPopover(!showColumnPopover)}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-              </Button>
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Button 
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowColumnPopover(!showColumnPopover)}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                </Button>
               
               {/* Column Visibility Popover */}
               {showColumnPopover && (
@@ -849,6 +878,24 @@ export default function OrdersPage() {
                   </div>
                 </div>
               )}
+              </div>
+              
+              <Button 
+                variant={selectedItems.size > 0 ? "default" : "outline"}
+                size="sm"
+                disabled={selectedItems.size === 0}
+                onClick={() => {
+                  // TODO: Implement create batch functionality
+                  console.log('Create batch with selected items:', Array.from(selectedItems));
+                }}
+                className={`transition-all duration-200 ${
+                  selectedItems.size > 0 
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                    : 'text-gray-400 border-gray-300 cursor-not-allowed opacity-50'
+                }`}
+              >
+                Create Batch
+              </Button>
             </div>
             <div className="flex items-center gap-4">
               <div className="text-sm text-gray-500">
@@ -882,6 +929,17 @@ export default function OrdersPage() {
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="border-b">
+                      <th className="text-center p-2" style={{ width: '40px' }}>
+                        <input
+                          type="checkbox"
+                          checked={isAllSelected}
+                          ref={(el) => {
+                            if (el) el.indeterminate = isIndeterminate;
+                          }}
+                          onChange={(e) => handleSelectAll(e.target.checked)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                        />
+                      </th>
                       <th className="text-center p-0.5 font-normal text-gray-300 whitespace-nowrap" style={{ width: '15px', fontSize: '8px' }}>#</th>
                       {visibleColumns.map((column, index) => (
                         <th 
@@ -905,6 +963,14 @@ export default function OrdersPage() {
                   <tbody>
                     {events.map((event, index) => (
                       <tr key={event.id} className="border-b hover:bg-gray-50" style={{ height: '60px' }}>
+                        <td className="text-center p-2 align-middle" style={{ width: '40px' }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedItems.has(event.id)}
+                            onChange={(e) => handleItemSelect(event.id, e.target.checked)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                          />
+                        </td>
                         <td className="text-center p-0.5 align-middle" style={{ width: '15px' }}>
                           <div className="text-gray-300" style={{ fontSize: '10px' }}>{((currentPage - 1) * eventsPerPage) + index + 1}</div>
                         </td>
