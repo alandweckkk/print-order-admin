@@ -4,16 +4,57 @@ import sharp from "sharp";
 
 export async function prepareLayout(formData: FormData): Promise<ArrayBuffer> {
   try {
-    // Parse the file from formData
-    const file = formData.get("image") as File;
-    
-    if (!file) {
-      throw new Error("No file provided");
-    }
+    let inputBuffer: Buffer;
 
-    // Convert file to buffer
-    const arrayBuffer = await file.arrayBuffer();
-    const inputBuffer = Buffer.from(arrayBuffer);
+    // Check if we have a file or URL
+    const file = formData.get("image") as File;
+    const imageUrl = formData.get("imageUrl") as string;
+
+    if (file) {
+      // Handle file upload
+      if (!file.type.includes('png')) {
+        throw new Error("Please provide a PNG file");
+      }
+      
+      const arrayBuffer = await file.arrayBuffer();
+      inputBuffer = Buffer.from(arrayBuffer);
+    } else if (imageUrl) {
+      // Handle URL download
+      try {
+        // Validate URL
+        new URL(imageUrl);
+        
+        // Fetch the image from URL
+        const response = await fetch(imageUrl);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+        }
+
+        // Check if the response is an image
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('image')) {
+          throw new Error('URL does not point to an image');
+        }
+
+        // Convert response to buffer
+        const arrayBuffer = await response.arrayBuffer();
+        inputBuffer = Buffer.from(arrayBuffer);
+
+        // Validate that it's a PNG by trying to read it with Sharp
+        const metadata = await sharp(inputBuffer).metadata();
+        if (metadata.format !== 'png') {
+          throw new Error('Image must be in PNG format');
+        }
+      } catch (error) {
+        if (error instanceof Error) {
+          throw new Error(`Failed to process image URL: ${error.message}`);
+        }
+        throw new Error('Failed to process image URL');
+      }
+    } else {
+      throw new Error("No image file or URL provided");
+    }
 
     // Step 1: Auto-crop - trim all fully-transparent rows/columns
     const croppedImage = sharp(inputBuffer)
@@ -44,7 +85,7 @@ export async function prepareLayout(formData: FormData): Promise<ArrayBuffer> {
       top: y
     }));
 
-    // Step 5: Export as PNG buffer
+    // Step 5: Export clean PNG buffer (no annotations)
     const finalBuffer = await sharp({
       create: {
         width: canvasWidth,
