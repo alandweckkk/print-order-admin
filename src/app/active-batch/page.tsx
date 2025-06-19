@@ -5,6 +5,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { 
   MoreHorizontal, 
   Grid3X3, 
   Maximize2, 
@@ -173,7 +180,7 @@ function useTouchGesture(onSwipeLeft: () => void, onSwipeRight: () => void) {
 
 export default function ActiveBatchPage() {
   const router = useRouter();
-  const [viewMode, setViewMode] = useState<ViewMode>('horizontal');
+  const [viewMode, setViewMode] = useState<ViewMode>('gallery');
   const [orders, setOrders] = useState(mockOrders);
   const [currentOrderIndex, setCurrentOrderIndex] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
@@ -273,39 +280,34 @@ export default function ActiveBatchPage() {
         {/* Sticky Top Bar */}
         <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 sm:px-8 py-4 shadow-sm">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            {/* View Toggle Buttons - Hide on mobile, auto-switch to 1-by-1 */}
+            {/* View Mode Dropdown - Hide on mobile, auto-switch to 1-by-1 */}
             {!isMobile && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <Button
-                  variant={viewMode === 'horizontal' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setViewMode('horizontal')}
-                  className={viewMode === 'horizontal' ? 'bg-blue-600 hover:bg-blue-700' : ''}
-                >
-                  <MoreHorizontal className="h-4 w-4 mr-2" />
-                  <span className="hidden sm:inline">Horizontal Scroll</span>
-                  <span className="sm:hidden">Scroll</span>
-                </Button>
-                <Button
-                  variant={viewMode === 'gallery' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setViewMode('gallery')}
-                  className={viewMode === 'gallery' ? 'bg-blue-600 hover:bg-blue-700' : ''}
-                >
-                  <Grid3X3 className="h-4 w-4 mr-2" />
-                  <span className="hidden sm:inline">Gallery View</span>
-                  <span className="sm:hidden">Gallery</span>
-                </Button>
-                <Button
-                  variant={viewMode === 'one-by-one' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setViewMode('one-by-one')}
-                  className={viewMode === 'one-by-one' ? 'bg-blue-600 hover:bg-blue-700' : ''}
-                >
-                  <Maximize2 className="h-4 w-4 mr-2" />
-                  <span className="hidden sm:inline">1-by-1 View</span>
-                  <span className="sm:hidden">1-by-1</span>
-                </Button>
+              <div className="flex items-center gap-2">
+                <Select value={viewMode} onValueChange={(value: ViewMode) => setViewMode(value)}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="gallery">
+                      <div className="flex items-center gap-2">
+                        <Grid3X3 className="h-4 w-4" />
+                        Gallery View
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="horizontal">
+                      <div className="flex items-center gap-2">
+                        <MoreHorizontal className="h-4 w-4" />
+                        Horizontal Scroll
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="one-by-one">
+                      <div className="flex items-center gap-2">
+                        <Maximize2 className="h-4 w-4" />
+                        1-by-1 View
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             )}
 
