@@ -10,8 +10,18 @@ import { TableImagePopover } from "@/components/TableImagePopover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 import { fetchPhysicalStripeEvents, fetchStripeEventColumns, fetchPhysicalMailOrderColumns, fetchModelRunsColumns, fetchPhysicalMailOrderRetoolColumns, CombinedOrderEvent, updateRetoolField } from './actions/pull-orders-from-supabase';
+
+// Add batch interfaces
+interface Batch {
+  batch_id: string;
+  name: string;
+  created_at: string;
+  order_ids: number[];
+  order_data: CombinedOrderEvent[]; // Store actual order data
+}
 
 export default function OrdersPage() {
   const [events, setEvents] = useState<CombinedOrderEvent[]>([]);
@@ -33,6 +43,63 @@ export default function OrdersPage() {
 
   // Add state for bulk selection
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
+
+  // Add batch creation state
+  const [showBatchModal, setShowBatchModal] = useState(false);
+  const [batchName, setBatchName] = useState('');
+  const [isCreatingBatch, setIsCreatingBatch] = useState(false);
+
+  // Batch management functions
+  const getBatches = (): Batch[] => {
+    if (typeof window === 'undefined') return [];
+    const stored = localStorage.getItem('print_order_batches');
+    return stored ? JSON.parse(stored) : [];
+  };
+
+  const saveBatches = (batches: Batch[]) => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('print_order_batches', JSON.stringify(batches));
+  };
+
+  const createBatch = () => {
+    if (!batchName.trim()) return;
+    
+    setIsCreatingBatch(true);
+    
+    // Get the actual order data for selected items
+    const selectedOrderData = events.filter(event => selectedItems.has(event.id));
+    
+    // Create batch with timestamp ID
+    const batch_id = Date.now().toString();
+    const newBatch: Batch = {
+      batch_id,
+      name: batchName.trim(),
+      created_at: new Date().toISOString(),
+      order_ids: Array.from(selectedItems),
+      order_data: selectedOrderData // Store the actual order data
+    };
+
+    // Save to localStorage
+    const currentBatches = getBatches();
+    const updatedBatches = [...currentBatches, newBatch];
+    saveBatches(updatedBatches);
+
+    console.log('Batch created:', newBatch);
+    
+    // Reset state
+    setSelectedItems(new Set());
+    setBatchName('');
+    setShowBatchModal(false);
+    setIsCreatingBatch(false);
+    
+    // Optional: Show success message or redirect
+    alert(`Batch "${newBatch.name}" created with ${newBatch.order_ids.length} orders!`);
+  };
+
+  const handleCreateBatchClick = () => {
+    if (selectedItems.size < 2) return; // Require at least 2 items
+    setShowBatchModal(true);
+  };
 
   // Handle selecting/deselecting individual items
   const handleItemSelect = (eventId: number, checked: boolean) => {
@@ -881,20 +948,20 @@ export default function OrdersPage() {
               </div>
               
               <Button 
-                variant={selectedItems.size > 0 ? "default" : "outline"}
+                variant={selectedItems.size > 1 ? "default" : "outline"}
                 size="sm"
-                disabled={selectedItems.size === 0}
-                onClick={() => {
-                  // TODO: Implement create batch functionality
-                  console.log('Create batch with selected items:', Array.from(selectedItems));
-                }}
+                disabled={selectedItems.size < 2}
+                onClick={handleCreateBatchClick}
                 className={`transition-all duration-200 ${
-                  selectedItems.size > 0 
+                  selectedItems.size > 1 
                     ? 'bg-blue-600 hover:bg-blue-700 text-white' 
                     : 'text-gray-400 border-gray-300 cursor-not-allowed opacity-50'
                 }`}
               >
                 Create Batch
+                {selectedItems.size > 0 && selectedItems.size < 2 && (
+                  <span className="ml-1 text-xs">({selectedItems.size}/2 min)</span>
+                )}
               </Button>
             </div>
             <div className="flex items-center gap-4">
@@ -958,6 +1025,7 @@ export default function OrdersPage() {
                         </th>
                       ))}
                       <th className="text-left p-3 font-medium text-xs whitespace-nowrap overflow-hidden text-ellipsis" style={{ width: '80px', fontSize: '10px' }}>Actions</th>
+                      <th className="text-center p-3 font-medium text-xs whitespace-nowrap" style={{ width: '60px', fontSize: '10px' }}>Send</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -996,6 +1064,22 @@ export default function OrdersPage() {
                           >
                             View Details
                           </Button>
+                        </td>
+                        <td className="text-center p-3 align-middle" style={{ width: '60px' }}>
+                          <svg 
+                            className="w-4 h-4 text-gray-400 mx-auto" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            viewBox="0 0 24 24" 
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path 
+                              strokeLinecap="round" 
+                              strokeLinejoin="round" 
+                              strokeWidth={2} 
+                              d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" 
+                            />
+                          </svg>
                         </td>
                       </tr>
                     ))}
@@ -1049,6 +1133,54 @@ export default function OrdersPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Batch Creation Modal */}
+        <Dialog open={showBatchModal} onOpenChange={setShowBatchModal}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Create New Batch</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <label htmlFor="batch-name" className="text-sm font-medium">
+                  Batch Name
+                </label>
+                <Input
+                  id="batch-name"
+                  value={batchName}
+                  onChange={(e) => setBatchName(e.target.value)}
+                  placeholder="Enter batch name..."
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && batchName.trim()) {
+                      createBatch();
+                    }
+                  }}
+                />
+              </div>
+              <div className="text-sm text-gray-500">
+                Creating batch with {selectedItems.size} selected orders
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowBatchModal(false);
+                  setBatchName('');
+                }}
+                disabled={isCreatingBatch}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={createBatch}
+                disabled={!batchName.trim() || isCreatingBatch}
+              >
+                {isCreatingBatch ? 'Creating...' : 'Create Batch'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

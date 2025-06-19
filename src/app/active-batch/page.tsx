@@ -25,51 +25,30 @@ import {
 } from "lucide-react";
 import { useRouter } from 'next/navigation';
 
-// Mock data for demonstration
-const mockOrders = [
-  {
-    id: 1,
-    modelRunId: "MR-2024-001",
-    orderNumber: "ORD-789123",
-    userEmail: "sarah@example.com",
-    stickerSheetUrl: "/api/placeholder/400/500",
-    envelopeUrl: "/api/placeholder/300/200",
-    status: "Ready"
-  },
-  {
-    id: 2,
-    modelRunId: "MR-2024-002", 
-    orderNumber: "ORD-789124",
-    userEmail: "michael.chen@example.com",
-    stickerSheetUrl: "/api/placeholder/400/500",
-    envelopeUrl: "/api/placeholder/300/200",
-    status: "Printed"
-  },
-  {
-    id: 3,
-    modelRunId: "MR-2024-003",
-    orderNumber: "ORD-789125", 
-    userEmail: "emma.rodriguez@example.com",
-    stickerSheetUrl: "/api/placeholder/400/500",
-    envelopeUrl: "/api/placeholder/300/200",
-    status: "Ready"
-  },
-  // Add more mock orders for demonstration
-  ...Array.from({ length: 22 }, (_, i) => ({
-    id: i + 4,
-    modelRunId: `MR-2024-${String(i + 4).padStart(3, '0')}`,
-    orderNumber: `ORD-${789125 + i + 1}`,
-    userEmail: `user${i + 4}@example.com`,
-    stickerSheetUrl: "/api/placeholder/400/500",
-    envelopeUrl: "/api/placeholder/300/200",
-    status: i % 3 === 0 ? "Printed" : "Ready"
-  }))
-];
+// Batch interface  
+interface Batch {
+  batch_id: string;
+  name: string;
+  created_at: string;
+  order_ids: number[];
+  order_data?: any[]; // Store actual order data (optional for backward compatibility)
+}
+
+// Order interface for typed state
+interface Order {
+  id: number;
+  modelRunId: string;
+  orderNumber: string;
+  userEmail: string;
+  stickerSheetUrl: string;
+  envelopeUrl: string;
+  status: string;
+}
 
 type ViewMode = 'horizontal' | 'gallery' | 'one-by-one';
 
 interface OrderCardProps {
-  order: typeof mockOrders[0];
+  order: Order;
   onRemove: (id: number) => void;
   className?: string;
   size?: 'small' | 'medium' | 'large' | 'horizontal-large' | 'one-by-one-huge';
@@ -181,9 +160,59 @@ function useTouchGesture(onSwipeLeft: () => void, onSwipeRight: () => void) {
 export default function ActiveBatchPage() {
   const router = useRouter();
   const [viewMode, setViewMode] = useState<ViewMode>('gallery');
-  const [orders, setOrders] = useState(mockOrders);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [currentOrderIndex, setCurrentOrderIndex] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
+  
+  // Batch management state
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [selectedBatchId, setSelectedBatchId] = useState<string>('');
+  const [activeBatch, setActiveBatch] = useState<Batch | null>(null);
+
+  // Batch management functions
+  const loadBatches = () => {
+    if (typeof window === 'undefined') return;
+    const stored = localStorage.getItem('print_order_batches');
+    const loadedBatches = stored ? JSON.parse(stored) : [];
+    setBatches(loadedBatches);
+    
+    // Auto-select first batch if available and none selected
+    if (loadedBatches.length > 0 && !selectedBatchId) {
+      selectBatch(loadedBatches[0].batch_id);
+    }
+  };
+
+  const selectBatch = (batchId: string) => {
+    const batch = batches.find(b => b.batch_id === batchId);
+    if (batch) {
+      setSelectedBatchId(batchId);
+      setActiveBatch(batch);
+      setCurrentOrderIndex(0); // Reset to first order
+      
+      // Load actual order data from the batch
+      if (batch.order_data && batch.order_data.length > 0) {
+        // Convert order data to the format expected by OrderCard
+        const convertedOrders = batch.order_data.map((order: any, index: number) => ({
+          id: order.id,
+          modelRunId: order.mr_id || `MR-${Date.now()}-${index}`,
+          orderNumber: order.pmo_order_number || `ORD-${order.id}`,
+          userEmail: order.pmo_email || order.user_id || `user${order.id}@example.com`,
+          stickerSheetUrl: order.mr_output_image_url || order.output_image_url || "/api/placeholder/400/500",
+          envelopeUrl: "/api/placeholder/300/200", // Default envelope
+          status: order.pmo_status === "shipped" ? "Printed" : "Ready"
+        }));
+        setOrders(convertedOrders);
+      } else {
+        // Fallback to empty orders if no data
+        setOrders([]);
+      }
+    }
+  };
+
+  // Load batches on component mount
+  useEffect(() => {
+    loadBatches();
+  }, []);
 
   // Check if mobile on component mount
   useEffect(() => {
@@ -251,12 +280,12 @@ export default function ActiveBatchPage() {
     }
   }, [viewMode, handleTouchStart, handleTouchEnd]);
 
-  if (orders.length === 0) {
+  if (batches.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="max-w-[1500px] mx-auto p-4 sm:p-8">
           <div className="text-center py-16">
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">No Active Batch</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">No Batches Found</h1>
             <p className="text-gray-500 mb-8 text-base sm:text-lg">Create a batch from the Orders tab to get started.</p>
             <Button 
               onClick={() => router.push('/orders')}
@@ -280,65 +309,104 @@ export default function ActiveBatchPage() {
         {/* Sticky Top Bar */}
         <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 sm:px-8 py-4 shadow-sm">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            {/* View Mode Dropdown - Hide on mobile, auto-switch to 1-by-1 */}
-            {!isMobile && (
-              <div className="flex items-center gap-2">
-                <Select value={viewMode} onValueChange={(value: ViewMode) => setViewMode(value)}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="gallery">
+            {/* Batch Selection Dropdown */}
+            <div className="flex items-center gap-2">
+              <Select 
+                value={selectedBatchId} 
+                onValueChange={(value: string) => selectBatch(value)}
+              >
+                <SelectTrigger className="w-[250px]">
+                  <SelectValue placeholder="Select a batch" />
+                </SelectTrigger>
+                <SelectContent>
+                  {batches.map((batch) => (
+                    <SelectItem key={batch.batch_id} value={batch.batch_id}>
                       <div className="flex items-center gap-2">
-                        <Grid3X3 className="h-4 w-4" />
-                        Gallery View
+                        <Mail className="h-4 w-4" />
+                        <div className="flex flex-col">
+                          <span className="font-medium">{batch.name}</span>
+                          <span className="text-xs text-gray-500">
+                            {batch.order_ids.length} orders • {new Date(batch.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
                       </div>
                     </SelectItem>
-                    <SelectItem value="horizontal">
-                      <div className="flex items-center gap-2">
-                        <MoreHorizontal className="h-4 w-4" />
-                        Horizontal Scroll
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="one-by-one">
-                      <div className="flex items-center gap-2">
-                        <Maximize2 className="h-4 w-4" />
-                        1-by-1 View
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-            {/* Mobile indicator */}
-            {isMobile && (
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Maximize2 className="h-4 w-4" />
-                1-by-1 View (Mobile)
-              </div>
-            )}
-
-                         {/* Action Buttons */}
-             <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-               <Button
-                 variant="outline"
-                 onClick={handlePrintLabels}
-                 className="border-gray-300"
-                 size={isMobile ? "sm" : "default"}
-               >
-                 <Printer className="h-4 w-4 mr-1 sm:mr-2" />
-                 <span className="hidden sm:inline">Print Labels</span>
-                 <span className="sm:hidden">Print</span>
-               </Button>
-             </div>
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              <Button
+                variant="outline"
+                onClick={handlePrintLabels}
+                className="border-gray-300"
+                size={isMobile ? "sm" : "default"}
+                disabled={!activeBatch}
+              >
+                <Printer className="h-4 w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Print Labels</span>
+                <span className="sm:hidden">Print</span>
+              </Button>
+            </div>
           </div>
         </div>
 
+        {/* Active Batch Info Bar */}
+        {activeBatch && (
+          <div className="bg-blue-50 border-b border-blue-200 px-4 sm:px-8 py-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-medium text-blue-900">Active Batch: {activeBatch.name}</h4>
+                <p className="text-sm text-blue-700">
+                  {activeBatch.order_ids.length} orders • Created {new Date(activeBatch.created_at).toLocaleDateString()}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Badge className="bg-blue-100 text-blue-800">
+                  Active
+                </Badge>
+                {/* View Mode Selector for active batch */}
+                {!isMobile && (
+                  <Select value={viewMode} onValueChange={(value: ViewMode) => setViewMode(value)}>
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="gallery">
+                        <div className="flex items-center gap-2">
+                          <Grid3X3 className="h-3 w-3" />
+                          Gallery
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="horizontal">
+                        <div className="flex items-center gap-2">
+                          <MoreHorizontal className="h-3 w-3" />
+                          Horizontal
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="one-by-one">
+                        <div className="flex items-center gap-2">
+                          <Maximize2 className="h-3 w-3" />
+                          1-by-1
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Content Area */}
         <div className="p-4 sm:p-8">
-          {/* Horizontal Scroll View */}
-          {viewMode === 'horizontal' && !isMobile && (
+          {/* Order Views - Only show when there's an active batch */}
+          {activeBatch && orders.length > 0 && (
+            <>
+              {/* Horizontal Scroll View */}
+              {viewMode === 'horizontal' && !isMobile && (
             <div className="overflow-x-auto pb-4">
               <div className="flex gap-6 min-w-max">
                 {orders.map((order) => (
@@ -430,6 +498,24 @@ export default function ActiveBatchPage() {
                   <ChevronRight className="h-4 w-4 ml-1 sm:ml-2" />
                 </Button>
               </div>
+            </div>
+          )}
+            </>
+          )}
+
+          {/* No Active Batch Selected or No Orders in Batch */}
+          {!activeBatch && batches.length > 0 && (
+            <div className="text-center py-16">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Select a Batch</h2>
+              <p className="text-gray-500 mb-6">Choose a batch from the dropdown above to view its orders.</p>
+            </div>
+          )}
+
+          {/* Active Batch with No Orders */}
+          {activeBatch && orders.length === 0 && (
+            <div className="text-center py-16">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">No Orders in Batch</h2>
+              <p className="text-gray-500 mb-6">This batch appears to be empty or the order data couldn't be loaded.</p>
             </div>
           )}
         </div>
