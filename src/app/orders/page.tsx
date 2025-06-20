@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 import { fetchPhysicalStripeEvents, fetchStripeEventColumns, fetchPhysicalMailOrderColumns, fetchModelRunsColumns, CombinedOrderEvent } from './actions/pull-orders-from-supabase';
+import { getCurrentAdminDefaults, saveCurrentAdminDefaults } from './actions/admin-profiles';
 
 // Add batch interfaces
 interface Batch {
@@ -32,6 +33,8 @@ export default function OrdersPage() {
 
   const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
   const [showColumnPopover, setShowColumnPopover] = useState(false);
+  const [isSavingDefaults, setIsSavingDefaults] = useState(false);
+  const [currentAdminName, setCurrentAdminName] = useState<string>('Joey');
   const popoverRef = useRef<HTMLDivElement>(null);
   const eventsPerPage = 100;
 
@@ -155,37 +158,63 @@ export default function OrdersPage() {
     const loadData = async () => {
       setLoading(true);
       try {
-        // Load columns metadata (only needed once)
-        const [stripeEventColumns, physicalMailOrderColumns, modelRunsColumns] = await Promise.all([
+        // Load columns metadata and admin defaults in parallel
+        const [stripeEventColumns, physicalMailOrderColumns, modelRunsColumns, adminDefaults] = await Promise.all([
           fetchStripeEventColumns(),
           fetchPhysicalMailOrderColumns(),
-          fetchModelRunsColumns()
+          fetchModelRunsColumns(),
+          getCurrentAdminDefaults()
         ]);
         
         setStripeColumns(stripeEventColumns);
         setPhysicalMailColumns(physicalMailOrderColumns);
         setModelRunsColumns(modelRunsColumns);
         
-        // Set default visible columns (currently displayed ones)
-        const defaultColumns = [
-          // Stripe captured events columns
+        // Use Joey's saved defaults or fallback to hardcoded defaults
+        let defaultColumns: string[];
+        if (adminDefaults.success && adminDefaults.data.default_column_arrays.length > 0) {
+          defaultColumns = adminDefaults.data.default_column_arrays;
+          setCurrentAdminName(adminDefaults.data.admin_name);
+          console.log(`✅ Loaded column defaults for ${adminDefaults.data.admin_name}:`, defaultColumns);
+        } else {
+          // Fallback to hardcoded defaults if no admin defaults found
+          defaultColumns = [
+            // Stripe captured events columns
+            'id',
+            'created_timestamp_est',
+            'user_id',
+            'model_run_id',
+            // Physical mail orders columns (with pmo_ prefix)
+            'pmo_shipping_address',
+            'pmo_status',
+            'pmo_order_number',
+            'pmo_email',
+            // Model runs columns (with mr_ prefix)
+            'mr_original_output_image_url',
+            'mr_output_image_url',
+            'mr_input_image_url'
+          ];
+          console.log('⚠️ No admin defaults found, using fallback columns:', defaultColumns);
+        }
+        
+        setVisibleColumns(defaultColumns);
+      } catch (error) {
+        console.error('Error loading columns:', error);
+        // Fallback to hardcoded defaults on error
+        const fallbackColumns = [
           'id',
           'created_timestamp_est',
           'user_id',
           'model_run_id',
-          // Physical mail orders columns (with pmo_ prefix)
           'pmo_shipping_address',
           'pmo_status',
           'pmo_order_number',
           'pmo_email',
-          // Model runs columns (with mr_ prefix)
           'mr_original_output_image_url',
           'mr_output_image_url',
           'mr_input_image_url'
         ];
-        setVisibleColumns(defaultColumns);
-      } catch (error) {
-        console.error('Error loading columns:', error);
+        setVisibleColumns(fallbackColumns);
       }
     };
 
@@ -253,6 +282,29 @@ export default function OrdersPage() {
         return [...prev, columnName];
       }
     });
+  };
+
+  const saveAsDefaults = async () => {
+    setIsSavingDefaults(true);
+    try {
+      const result = await saveCurrentAdminDefaults(
+        visibleColumns,
+        `Column defaults updated at ${new Date().toLocaleString()}`
+      );
+      
+      if (result.success) {
+        console.log(`✅ Saved column defaults for ${currentAdminName}:`, visibleColumns);
+        alert(`Column defaults saved successfully for ${currentAdminName}!`);
+      } else {
+        console.error('Failed to save column defaults:', result.error);
+        alert(`Failed to save defaults: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error saving column defaults:', error);
+      alert('An error occurred while saving defaults');
+    } finally {
+      setIsSavingDefaults(false);
+    }
   };
 
   const formatColumnHeader = (columnName: string) => {
@@ -440,7 +492,10 @@ export default function OrdersPage() {
                   className="absolute top-full left-0 mt-2 bg-white border border-gray-200 rounded-md shadow-lg z-10 p-6 overflow-hidden"
                   style={{ width: '1900px', minHeight: '900px' }}
                 >
-                  <h3 className="text-lg font-medium text-gray-900 mb-6">Show/Hide Columns</h3>
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-medium text-gray-900">Show/Hide Columns</h3>
+                    <span className="text-sm text-gray-600">Admin: <span className="font-medium text-blue-600">{currentAdminName}</span></span>
+                  </div>
                   
                   <div className="flex gap-6 overflow-x-auto" style={{ maxHeight: '800px' }}>
                     {/* Original Data Sources */}
@@ -677,8 +732,11 @@ export default function OrdersPage() {
 
                         {/* Info Box */}
                         <div className="mt-4 p-3 bg-gray-100/50 rounded-md border border-gray-200">
-                          <p className="text-xs text-gray-600 leading-relaxed">
-                            <span className="font-semibold">Summary:</span> This shows all currently visible columns from Stripe, Physical Mail Orders, and Model Runs sections.
+                          <p className="text-xs text-gray-600 leading-relaxed mb-2">
+                            <span className="font-semibold">Summary:</span> Currently visible columns from Stripe, Physical Mail Orders, and Model Runs sections.
+                          </p>
+                          <p className="text-xs text-green-600 leading-relaxed">
+                            <span className="font-semibold">💾 Admin Defaults:</span> Column visibility loaded from {currentAdminName}'s profile. Use the green "Save Column Defaults" button in the header to persist changes.
                           </p>
                         </div>
                       </div>
@@ -730,6 +788,31 @@ export default function OrdersPage() {
                 Create Batch
                 {selectedItems.size > 0 && selectedItems.size < 2 && (
                   <span className="ml-1 text-xs">({selectedItems.size}/2 min)</span>
+                )}
+              </Button>
+
+              <Button
+                onClick={saveAsDefaults}
+                disabled={isSavingDefaults}
+                size="sm"
+                className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
+                title={`Save current column visibility as default for ${currentAdminName}`}
+              >
+                {isSavingDefaults ? (
+                  <>
+                    <svg className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    Save Column Defaults ({currentAdminName})
+                  </>
                 )}
               </Button>
             </div>
