@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 import { fetchPhysicalStripeEvents, fetchStripeEventColumns, fetchPhysicalMailOrderColumns, fetchModelRunsColumns, CombinedOrderEvent } from './actions/pull-orders-from-supabase';
-import { getCurrentAdminDefaults, saveCurrentAdminDefaults } from './actions/admin-profiles';
+import { getCurrentAdminDefaults, saveCurrentAdminDefaults, ColumnConfig } from './actions/admin-profiles';
 
 // Add batch interfaces
 interface Batch {
@@ -31,7 +31,7 @@ export default function OrdersPage() {
   const [physicalMailColumns, setPhysicalMailColumns] = useState<string[]>([]);
   const [modelRunsColumns, setModelRunsColumns] = useState<string[]>([]);
 
-  const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
+  const [visibleColumns, setVisibleColumns] = useState<ColumnConfig[]>([]);
   const [showColumnPopover, setShowColumnPopover] = useState(false);
   const [isSavingDefaults, setIsSavingDefaults] = useState(false);
   const [currentAdminName, setCurrentAdminName] = useState<string>('Joey');
@@ -52,6 +52,14 @@ export default function OrdersPage() {
 
   // Add search state
   const [searchTerm, setSearchTerm] = useState<string>('');
+
+  // Add drag and drop state
+  const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+
+  // Add column width editing state
+  const [editingWidth, setEditingWidth] = useState<string | null>(null);
+  const [tempWidth, setTempWidth] = useState<string>('');
 
   // Batch management functions
   const getBatches = (): Batch[] => {
@@ -131,6 +139,52 @@ export default function OrdersPage() {
   // Calculate total pages
   const totalPages = Math.ceil(totalEvents / eventsPerPage);
 
+  // Helper function to get default column width based on column type
+  const getDefaultColumnWidth = (columnName: string): number => {
+    // ID columns - narrow
+    if (columnName === 'id' || columnName.endsWith('_id')) {
+      return 80;
+    }
+    
+    // Image URL columns - wider for better visibility
+    if (columnName.includes('image_url')) {
+      return 120;
+    }
+    
+    // Status columns - medium width
+    if (columnName.includes('status')) {
+      return 100;
+    }
+    
+    // Address/shipping columns - wider for readability
+    if (columnName.includes('address') || columnName.includes('shipping')) {
+      return 200;
+    }
+    
+    // Email columns - wider
+    if (columnName.includes('email')) {
+      return 180;
+    }
+    
+    // Timestamp columns - wider for date/time display
+    if (columnName.includes('timestamp') || columnName.includes('_at')) {
+      return 140;
+    }
+    
+    // Metadata/payload columns - wider for JSON content
+    if (columnName.includes('metadata') || columnName.includes('payload')) {
+      return 150;
+    }
+    
+    // Order number columns
+    if (columnName.includes('order_number')) {
+      return 120;
+    }
+    
+    // Default width for other columns
+    return 100;
+  };
+
   // Filter data based on search term
   const filteredData = useMemo(() => {
     if (!searchTerm.trim()) return events;
@@ -170,15 +224,31 @@ export default function OrdersPage() {
         setPhysicalMailColumns(physicalMailOrderColumns);
         setModelRunsColumns(modelRunsColumns);
         
+        // Helper function to convert old string array to new ColumnConfig array
+        const convertToColumnConfigs = (columns: string[] | ColumnConfig[]): ColumnConfig[] => {
+          if (columns.length === 0) return [];
+          
+          // Check if it's already in new format
+          if (typeof columns[0] === 'object' && 'name' in columns[0]) {
+            return columns as ColumnConfig[];
+          }
+          
+          // Convert old string array to new format with default widths
+          return (columns as string[]).map(columnName => ({
+            name: columnName,
+            width: getDefaultColumnWidth(columnName)
+          }));
+        };
+
         // Use Joey's saved defaults or fallback to hardcoded defaults
-        let defaultColumns: string[];
+        let defaultColumnConfigs: ColumnConfig[];
         if (adminDefaults.success && adminDefaults.data.default_column_arrays.length > 0) {
-          defaultColumns = adminDefaults.data.default_column_arrays;
+          defaultColumnConfigs = convertToColumnConfigs(adminDefaults.data.default_column_arrays);
           setCurrentAdminName(adminDefaults.data.admin_name);
-          console.log(`✅ Loaded column defaults for ${adminDefaults.data.admin_name}:`, defaultColumns);
+          console.log(`✅ Loaded column defaults for ${adminDefaults.data.admin_name}:`, defaultColumnConfigs);
         } else {
           // Fallback to hardcoded defaults if no admin defaults found
-          defaultColumns = [
+          const fallbackColumns = [
             // Stripe captured events columns
             'id',
             'created_timestamp_est',
@@ -194,10 +264,11 @@ export default function OrdersPage() {
             'mr_output_image_url',
             'mr_input_image_url'
           ];
-          console.log('⚠️ No admin defaults found, using fallback columns:', defaultColumns);
+          defaultColumnConfigs = convertToColumnConfigs(fallbackColumns);
+          console.log('⚠️ No admin defaults found, using fallback columns:', defaultColumnConfigs);
         }
         
-        setVisibleColumns(defaultColumns);
+        setVisibleColumns(defaultColumnConfigs);
       } catch (error) {
         console.error('Error loading columns:', error);
         // Fallback to hardcoded defaults on error
@@ -214,7 +285,11 @@ export default function OrdersPage() {
           'mr_output_image_url',
           'mr_input_image_url'
         ];
-        setVisibleColumns(fallbackColumns);
+        const fallbackColumnConfigs = fallbackColumns.map(columnName => ({
+          name: columnName,
+          width: getDefaultColumnWidth(columnName)
+        }));
+        setVisibleColumns(fallbackColumnConfigs);
       }
     };
 
@@ -276,10 +351,11 @@ export default function OrdersPage() {
 
   const toggleColumnVisibility = (columnName: string) => {
     setVisibleColumns(prev => {
-      if (prev.includes(columnName)) {
-        return prev.filter(col => col !== columnName);
+      const existingIndex = prev.findIndex(col => col.name === columnName);
+      if (existingIndex !== -1) {
+        return prev.filter(col => col.name !== columnName);
       } else {
-        return [...prev, columnName];
+        return [...prev, { name: columnName, width: getDefaultColumnWidth(columnName) }];
       }
     });
   };
@@ -288,7 +364,7 @@ export default function OrdersPage() {
     setIsSavingDefaults(true);
     try {
       const result = await saveCurrentAdminDefaults(
-        visibleColumns,
+        visibleColumns, // Now saving ColumnConfig[] array with names and widths
         `Column defaults updated at ${new Date().toLocaleString()}`
       );
       
@@ -330,6 +406,107 @@ export default function OrdersPage() {
       return 'text-green-600'; // Green for model runs
     }
     return 'text-blue-600'; // Blue for stripe captured events
+  };
+
+  // Drag and drop handlers for column reordering
+  const handleDragStart = (e: React.DragEvent, columnName: string) => {
+    setDraggedColumn(columnName);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', columnName);
+  };
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    setDraggedColumn(null);
+    setDragOverColumn(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent, columnName: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverColumn(columnName);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverColumn(null);
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetColumnName: string) => {
+    e.preventDefault();
+    setDragOverColumn(null);
+    
+    if (!draggedColumn || draggedColumn === targetColumnName) {
+      setDraggedColumn(null);
+      return;
+    }
+
+    // Create new column order
+    const newVisibleColumns = [...visibleColumns];
+    const draggedIndex = newVisibleColumns.findIndex(col => col.name === draggedColumn);
+    const targetIndex = newVisibleColumns.findIndex(col => col.name === targetColumnName);
+    
+    // Remove dragged column from its current position
+    const [draggedCol] = newVisibleColumns.splice(draggedIndex, 1);
+    
+    // Insert it at the new position
+    newVisibleColumns.splice(targetIndex, 0, draggedCol);
+    
+    // Update local state immediately
+    setVisibleColumns(newVisibleColumns);
+    setDraggedColumn(null);
+    
+    // Save to Supabase in the background (no need to wait or read back)
+    try {
+      await saveCurrentAdminDefaults(
+        newVisibleColumns,
+        `Column order updated at ${new Date().toLocaleString()}`
+      );
+      console.log('✅ Column order saved to Supabase:', newVisibleColumns);
+    } catch (error) {
+      console.error('❌ Failed to save column order:', error);
+      // Could show a toast notification here if desired
+    }
+  };
+
+  // Column width editing handlers
+  const handleWidthEdit = (columnName: string, currentWidth: number) => {
+    setEditingWidth(columnName);
+    setTempWidth(currentWidth.toString());
+  };
+
+  const handleWidthSave = async (columnName: string) => {
+    const newWidth = parseInt(tempWidth);
+    if (isNaN(newWidth) || newWidth < 50) {
+      setEditingWidth(null);
+      setTempWidth('');
+      return;
+    }
+
+    // Update the column width
+    const newVisibleColumns = visibleColumns.map(col => 
+      col.name === columnName 
+        ? { ...col, width: newWidth }
+        : col
+    );
+    
+    setVisibleColumns(newVisibleColumns);
+    setEditingWidth(null);
+    setTempWidth('');
+    
+    // Save to Supabase in the background
+    try {
+      await saveCurrentAdminDefaults(
+        newVisibleColumns,
+        `Column widths updated at ${new Date().toLocaleString()}`
+      );
+      console.log('✅ Column widths saved to Supabase:', newVisibleColumns);
+    } catch (error) {
+      console.error('❌ Failed to save column widths:', error);
+    }
+  };
+
+  const handleWidthCancel = () => {
+    setEditingWidth(null);
+    setTempWidth('');
   };
 
   const renderCellContent = (event: CombinedOrderEvent, columnName: string) => {
@@ -507,8 +684,11 @@ export default function OrdersPage() {
                           <button
                             onClick={() => {
                               setVisibleColumns(prev => [
-                                ...prev.filter(col => !stripeColumns.includes(col)),
-                                ...stripeColumns
+                                ...prev.filter(col => !stripeColumns.includes(col.name)),
+                                ...stripeColumns.map(columnName => ({
+                                  name: columnName,
+                                  width: getDefaultColumnWidth(columnName)
+                                }))
                               ]);
                             }}
                             className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
@@ -518,7 +698,7 @@ export default function OrdersPage() {
                           <span className="text-xs text-gray-400">|</span>
                           <button
                             onClick={() => {
-                              setVisibleColumns(prev => prev.filter(col => !stripeColumns.includes(col)));
+                              setVisibleColumns(prev => prev.filter(col => !stripeColumns.includes(col.name)));
                             }}
                             className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
                           >
@@ -530,7 +710,7 @@ export default function OrdersPage() {
                             <label key={column} className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-1 rounded">
                               <input
                                 type="checkbox"
-                                checked={visibleColumns.includes(column)}
+                                checked={visibleColumns.some(col => col.name === column)}
                                 onChange={() => toggleColumnVisibility(column)}
                                 className="rounded border-gray-300 w-4 h-4"
                               />
@@ -551,8 +731,11 @@ export default function OrdersPage() {
                             onClick={() => {
                               const pmoColumns = physicalMailColumns.map(col => `pmo_${col}`);
                               setVisibleColumns(prev => [
-                                ...prev.filter(col => !pmoColumns.includes(col)),
-                                ...pmoColumns
+                                ...prev.filter(col => !pmoColumns.includes(col.name)),
+                                ...pmoColumns.map(columnName => ({
+                                  name: columnName,
+                                  width: getDefaultColumnWidth(columnName)
+                                }))
                               ]);
                             }}
                             className="text-xs text-purple-600 hover:text-purple-800 hover:underline"
@@ -563,7 +746,7 @@ export default function OrdersPage() {
                           <button
                             onClick={() => {
                               const pmoColumns = physicalMailColumns.map(col => `pmo_${col}`);
-                              setVisibleColumns(prev => prev.filter(col => !pmoColumns.includes(col)));
+                              setVisibleColumns(prev => prev.filter(col => !pmoColumns.includes(col.name)));
                             }}
                             className="text-xs text-purple-600 hover:text-purple-800 hover:underline"
                           >
@@ -577,7 +760,7 @@ export default function OrdersPage() {
                               <label key={prefixedColumn} className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-1 rounded">
                                 <input
                                   type="checkbox"
-                                  checked={visibleColumns.includes(prefixedColumn)}
+                                  checked={visibleColumns.some(col => col.name === prefixedColumn)}
                                   onChange={() => toggleColumnVisibility(prefixedColumn)}
                                   className="rounded border-gray-300 w-4 h-4"
                                 />
@@ -599,8 +782,11 @@ export default function OrdersPage() {
                             onClick={() => {
                               const mrColumns = modelRunsColumns.map(col => `mr_${col}`);
                               setVisibleColumns(prev => [
-                                ...prev.filter(col => !mrColumns.includes(col)),
-                                ...mrColumns
+                                ...prev.filter(col => !mrColumns.includes(col.name)),
+                                ...mrColumns.map(columnName => ({
+                                  name: columnName,
+                                  width: getDefaultColumnWidth(columnName)
+                                }))
                               ]);
                             }}
                             className="text-xs text-green-600 hover:text-green-800 hover:underline"
@@ -611,7 +797,7 @@ export default function OrdersPage() {
                           <button
                             onClick={() => {
                               const mrColumns = modelRunsColumns.map(col => `mr_${col}`);
-                              setVisibleColumns(prev => prev.filter(col => !mrColumns.includes(col)));
+                              setVisibleColumns(prev => prev.filter(col => !mrColumns.includes(col.name)));
                             }}
                             className="text-xs text-green-600 hover:text-green-800 hover:underline"
                           >
@@ -625,7 +811,7 @@ export default function OrdersPage() {
                               <label key={prefixedColumn} className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-1 rounded">
                                 <input
                                   type="checkbox"
-                                  checked={visibleColumns.includes(prefixedColumn)}
+                                  checked={visibleColumns.some(col => col.name === prefixedColumn)}
                                   onChange={() => toggleColumnVisibility(prefixedColumn)}
                                   className="rounded border-gray-300 w-4 h-4"
                                 />
@@ -660,15 +846,42 @@ export default function OrdersPage() {
                         <div className="space-y-3">
                           {/* Stripe Captured Events - Selected */}
                           {(() => {
-                            const selectedStripeColumns = visibleColumns.filter(col => stripeColumns.includes(col));
+                            const selectedStripeColumns = visibleColumns.filter(col => stripeColumns.includes(col.name));
                             return selectedStripeColumns.length > 0 && (
                               <div>
                                 <h5 className="text-xs font-medium text-blue-600 mb-2">Stripe Captured Events</h5>
                                 <div className="space-y-1 pl-2">
-                                  {selectedStripeColumns.map(column => (
-                                    <div key={column} className="flex items-center gap-2">
+                                  {selectedStripeColumns.map(columnConfig => (
+                                    <div key={columnConfig.name} className="flex items-center gap-2">
                                       <span className="w-1 h-1 bg-blue-500 rounded-full flex-shrink-0"></span>
-                                      <span className="text-blue-600 font-mono text-xs">{column}</span>
+                                      <span className="text-blue-600 font-mono text-xs flex-1">{columnConfig.name}</span>
+                                      <span className="text-blue-600 font-mono text-xs">
+                                        (
+                                        {editingWidth === columnConfig.name ? (
+                                          <input
+                                            type="number"
+                                            value={tempWidth}
+                                            onChange={(e) => setTempWidth(e.target.value)}
+                                            onBlur={() => handleWidthSave(columnConfig.name)}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') handleWidthSave(columnConfig.name);
+                                              if (e.key === 'Escape') handleWidthCancel();
+                                            }}
+                                            className="w-12 px-1 py-0 text-xs bg-white border border-blue-300 rounded"
+                                            min="50"
+                                            autoFocus
+                                          />
+                                        ) : (
+                                          <button
+                                            onClick={() => handleWidthEdit(columnConfig.name, columnConfig.width)}
+                                            className="hover:bg-blue-100 px-1 rounded"
+                                            title="Click to edit width"
+                                          >
+                                            {columnConfig.width}
+                                          </button>
+                                        )}
+                                        px)
+                                      </span>
                                     </div>
                                   ))}
                                 </div>
@@ -678,15 +891,42 @@ export default function OrdersPage() {
 
                           {/* Physical Mail Orders - Selected */}
                           {(() => {
-                            const selectedPmoColumns = visibleColumns.filter(col => col.startsWith('pmo_'));
+                            const selectedPmoColumns = visibleColumns.filter(col => col.name.startsWith('pmo_'));
                             return selectedPmoColumns.length > 0 && (
                               <div>
                                 <h5 className="text-xs font-medium text-purple-600 mb-2">Physical Mail Orders</h5>
                                 <div className="space-y-1 pl-2">
-                                  {selectedPmoColumns.map(column => (
-                                    <div key={column} className="flex items-center gap-2">
+                                  {selectedPmoColumns.map(columnConfig => (
+                                    <div key={columnConfig.name} className="flex items-center gap-2">
                                       <span className="w-1 h-1 bg-purple-500 rounded-full flex-shrink-0"></span>
-                                      <span className="text-purple-600 font-mono text-xs">{column.substring(4)}</span>
+                                      <span className="text-purple-600 font-mono text-xs flex-1">{columnConfig.name.substring(4)}</span>
+                                      <span className="text-purple-600 font-mono text-xs">
+                                        (
+                                        {editingWidth === columnConfig.name ? (
+                                          <input
+                                            type="number"
+                                            value={tempWidth}
+                                            onChange={(e) => setTempWidth(e.target.value)}
+                                            onBlur={() => handleWidthSave(columnConfig.name)}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') handleWidthSave(columnConfig.name);
+                                              if (e.key === 'Escape') handleWidthCancel();
+                                            }}
+                                            className="w-12 px-1 py-0 text-xs bg-white border border-purple-300 rounded"
+                                            min="50"
+                                            autoFocus
+                                          />
+                                        ) : (
+                                          <button
+                                            onClick={() => handleWidthEdit(columnConfig.name, columnConfig.width)}
+                                            className="hover:bg-purple-100 px-1 rounded"
+                                            title="Click to edit width"
+                                          >
+                                            {columnConfig.width}
+                                          </button>
+                                        )}
+                                        px)
+                                      </span>
                                     </div>
                                   ))}
                                 </div>
@@ -696,15 +936,42 @@ export default function OrdersPage() {
 
                           {/* Model Runs - Selected */}
                           {(() => {
-                            const selectedMrColumns = visibleColumns.filter(col => col.startsWith('mr_'));
+                            const selectedMrColumns = visibleColumns.filter(col => col.name.startsWith('mr_'));
                             return selectedMrColumns.length > 0 && (
                               <div>
                                 <h5 className="text-xs font-medium text-green-600 mb-2">Model Runs</h5>
                                 <div className="space-y-1 pl-2">
-                                  {selectedMrColumns.map(column => (
-                                    <div key={column} className="flex items-center gap-2">
+                                  {selectedMrColumns.map(columnConfig => (
+                                    <div key={columnConfig.name} className="flex items-center gap-2">
                                       <span className="w-1 h-1 bg-green-500 rounded-full flex-shrink-0"></span>
-                                      <span className="text-green-600 font-mono text-xs">{column.substring(3)}</span>
+                                      <span className="text-green-600 font-mono text-xs flex-1">{columnConfig.name.substring(3)}</span>
+                                      <span className="text-green-600 font-mono text-xs">
+                                        (
+                                        {editingWidth === columnConfig.name ? (
+                                          <input
+                                            type="number"
+                                            value={tempWidth}
+                                            onChange={(e) => setTempWidth(e.target.value)}
+                                            onBlur={() => handleWidthSave(columnConfig.name)}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') handleWidthSave(columnConfig.name);
+                                              if (e.key === 'Escape') handleWidthCancel();
+                                            }}
+                                            className="w-12 px-1 py-0 text-xs bg-white border border-green-300 rounded"
+                                            min="50"
+                                            autoFocus
+                                          />
+                                        ) : (
+                                          <button
+                                            onClick={() => handleWidthEdit(columnConfig.name, columnConfig.width)}
+                                            className="hover:bg-green-100 px-1 rounded"
+                                            title="Click to edit width"
+                                          >
+                                            {columnConfig.width}
+                                          </button>
+                                        )}
+                                        px)
+                                      </span>
                                     </div>
                                   ))}
                                 </div>
@@ -715,9 +982,9 @@ export default function OrdersPage() {
                           {/* Empty state */}
                           {(() => {
                             const totalSelected = visibleColumns.filter(col => 
-                              stripeColumns.includes(col) || 
-                              col.startsWith('pmo_') || 
-                              col.startsWith('mr_')
+                              stripeColumns.includes(col.name) || 
+                              col.name.startsWith('pmo_') || 
+                              col.name.startsWith('mr_')
                             ).length;
                             return totalSelected === 0 && (
                               <div className="text-center py-8">
@@ -795,24 +1062,18 @@ export default function OrdersPage() {
                 onClick={saveAsDefaults}
                 disabled={isSavingDefaults}
                 size="sm"
-                className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
-                title={`Save current column visibility as default for ${currentAdminName}`}
+                className="bg-green-600 hover:bg-green-700 text-white flex items-center justify-center w-8 h-8 p-0"
+                title={`Save current column visibility and widths as default for ${currentAdminName}`}
               >
                 {isSavingDefaults ? (
-                  <>
-                    <svg className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Saving...
-                  </>
+                  <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
                 ) : (
-                  <>
-                    <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                    Save Column Defaults ({currentAdminName})
-                  </>
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
                 )}
               </Button>
             </div>
@@ -857,20 +1118,46 @@ export default function OrdersPage() {
                         />
                       </th>
                       <th className="text-center p-0.5 font-normal text-gray-300 whitespace-nowrap" style={{ width: '15px', fontSize: '8px' }}>#</th>
-                      {visibleColumns.map((column, index) => (
+                      {visibleColumns.map((columnConfig, index) => (
                         <th 
-                          key={column} 
-                          className={`text-left p-3 font-medium whitespace-nowrap ${getColumnHeaderColor(column)}`}
+                          key={columnConfig.name} 
+                          draggable="true"
+                          onDragStart={(e) => handleDragStart(e, columnConfig.name)}
+                          onDragEnd={handleDragEnd}
+                          onDragOver={(e) => handleDragOver(e, columnConfig.name)}
+                          onDragLeave={handleDragLeave}
+                          onDrop={(e) => handleDrop(e, columnConfig.name)}
+                          className={`text-left p-3 font-medium whitespace-nowrap cursor-move select-none transition-all duration-200 ${getColumnHeaderColor(columnConfig.name)} ${
+                            dragOverColumn === columnConfig.name ? 'bg-blue-100 border-l-4 border-blue-500' : ''
+                          } ${
+                            draggedColumn === columnConfig.name ? 'opacity-50' : ''
+                          }`}
                           style={{ 
-                            width: index === visibleColumns.length - 1 ? 'auto' : '80px',
+                            width: index === visibleColumns.length - 1 ? 'auto' : `${columnConfig.width}px`,
                             fontSize: '10px'
                           }}
+                          title={`Drag to reorder: ${formatColumnHeader(columnConfig.name)}`}
                         >
-                          <PopoverCutoffText 
-                            text={formatColumnHeader(column)} 
-                            className="whitespace-nowrap" 
-                            style={{ fontSize: '10px' }}
-                          />
+                          <div className="flex items-center gap-2">
+                            <svg 
+                              className="w-3 h-3 text-gray-400 opacity-60" 
+                              fill="none" 
+                              stroke="currentColor" 
+                              viewBox="0 0 24 24"
+                            >
+                              <path 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                                strokeWidth={2} 
+                                d="M4 6h16M4 12h16M4 18h16" 
+                              />
+                            </svg>
+                            <PopoverCutoffText 
+                              text={formatColumnHeader(columnConfig.name)} 
+                              className="whitespace-nowrap" 
+                              style={{ fontSize: '10px' }}
+                            />
+                          </div>
                         </th>
                       ))}
                       <th className="text-left p-3 font-medium text-xs whitespace-nowrap overflow-hidden text-ellipsis" style={{ width: '80px', fontSize: '10px' }}>Actions</th>
@@ -891,15 +1178,15 @@ export default function OrdersPage() {
                         <td className="text-center p-0.5 align-middle" style={{ width: '15px' }}>
                           <div className="text-gray-300" style={{ fontSize: '10px' }}>{((currentPage - 1) * eventsPerPage) + index + 1}</div>
                         </td>
-                        {visibleColumns.map((column, colIndex) => (
+                        {visibleColumns.map((columnConfig, colIndex) => (
                           <td 
-                            key={column} 
+                            key={columnConfig.name} 
                             className="p-3 align-middle" 
                             style={{ 
-                              width: colIndex === visibleColumns.length - 1 ? 'auto' : '80px' 
+                              width: colIndex === visibleColumns.length - 1 ? 'auto' : `${columnConfig.width}px`
                             }}
                           >
-                            {renderCellContent(event, column)}
+                            {renderCellContent(event, columnConfig.name)}
                           </td>
                         ))}
                         <td className="p-3 align-middle" style={{ width: '80px' }}>

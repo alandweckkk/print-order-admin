@@ -2,10 +2,15 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 
+export interface ColumnConfig {
+  name: string;
+  width: number;
+}
+
 export interface AdminProfile {
   admin_name: string;
   notes?: string;
-  default_column_arrays: string[];
+  default_column_arrays: string[] | ColumnConfig[]; // Support both old and new format
 }
 
 /**
@@ -13,14 +18,14 @@ export interface AdminProfile {
  * If no adminName provided, uses the current admin (oldest in database)
  */
 export async function saveAdminColumnDefaults(
-  adminNameOrColumns: string | string[],
-  defaultColumns?: string[],
+  adminNameOrColumns: string | string[] | ColumnConfig[],
+  defaultColumns?: string[] | ColumnConfig[],
   notes?: string
 ) {
   try {
     // Handle both signatures: (adminName, columns, notes) and (columns, notes)
     let adminName: string;
-    let columnsToSave: string[];
+    let columnsToSave: string[] | ColumnConfig[];
     let notesToSave: string | undefined;
 
     if (Array.isArray(adminNameOrColumns)) {
@@ -62,7 +67,7 @@ export async function saveAdminColumnDefaults(
  * Save default column visibility settings for the current admin (oldest in database)
  */
 export async function saveCurrentAdminDefaults(
-  defaultColumns: string[],
+  defaultColumns: string[] | ColumnConfig[],
   notes?: string
 ) {
   const currentAdmin = await getCurrentAdmin();
@@ -154,7 +159,7 @@ export async function getAdminColumnDefaults(adminName?: string) {
 
 /**
  * Get all admin profiles (useful for admin management)
- * Returns profiles ordered by created_at (oldest first)
+  * Returns profiles ordered by created_at (oldest first)
  */
 export async function getAllAdminProfiles() {
   try {
@@ -183,7 +188,7 @@ export async function getAllAdminProfiles() {
 export async function createAdminProfile(
   adminName: string,
   notes?: string,
-  defaultColumns?: string[]
+  defaultColumns?: string[] | ColumnConfig[]
 ) {
   try {
     const supabase = await createAdminClient();
