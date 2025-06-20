@@ -60,7 +60,7 @@ function OrderCard({ order, onRemove, className = "", size = 'medium' }: OrderCa
     medium: "w-80", 
     large: "w-96 sm:w-80 md:w-96",
     "horizontal-large": "w-144", // 50% wider for horizontal view
-    "one-by-one-huge": "w-288"   // 200% wider (3x) for one-by-one view
+    "one-by-one-huge": "w-[800px] max-w-[800px]"   // Exactly 800px max width for one-by-one view
   };
 
   const imageClasses = {
@@ -68,7 +68,7 @@ function OrderCard({ order, onRemove, className = "", size = 'medium' }: OrderCa
     medium: "h-48",
     large: "h-64 sm:h-48 md:h-64",
     "horizontal-large": "h-96", // 50% taller for horizontal view  
-    "one-by-one-huge": "h-96"   // Keep proportional height for one-by-one
+    "one-by-one-huge": "h-[484px]"   // 384px + 100px = 484px for one-by-one
   };
 
   return (
@@ -76,11 +76,11 @@ function OrderCard({ order, onRemove, className = "", size = 'medium' }: OrderCa
       <CardContent className="p-4">
         {/* Sticker Sheet Preview */}
         <div className="mb-3">
-          <div className={`${imageClasses[size]} bg-gray-100 rounded-lg mb-2 flex items-center justify-center overflow-hidden`}>
+          <div className={`${imageClasses[size]} bg-gray-100 rounded-lg mb-2 flex items-center justify-center overflow-hidden ${size === 'one-by-one-huge' ? 'py-2.5' : ''}`}>
             <img 
               src={order.stickerSheetUrl} 
               alt="Sticker Sheet Preview"
-              className="w-full h-full object-cover"
+              className={size === 'one-by-one-huge' ? 'h-full w-auto object-contain' : 'w-full h-full object-cover'}
             />
           </div>
           <p className="text-xs text-gray-500 font-medium">Sticker Sheet</p>
@@ -159,7 +159,7 @@ function useTouchGesture(onSwipeLeft: () => void, onSwipeRight: () => void) {
 
 export default function ActiveBatchPage() {
   const router = useRouter();
-  const [viewMode, setViewMode] = useState<ViewMode>('gallery');
+  const [viewMode, setViewMode] = useState<ViewMode>('one-by-one');
   const [orders, setOrders] = useState<Order[]>([]);
   const [currentOrderIndex, setCurrentOrderIndex] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
