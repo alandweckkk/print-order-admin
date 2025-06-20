@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 
 import { fetchPhysicalStripeEvents, fetchStripeEventColumns, fetchPhysicalMailOrderColumns, fetchModelRunsColumns, CombinedOrderEvent } from './actions/pull-orders-from-supabase';
 import { getCurrentAdminDefaults, saveCurrentAdminDefaults, ColumnConfig } from './actions/admin-profiles';
-import { createBatchWithProcessedImages } from './actions/create-batch-with-processed-images';
+import { createBatch } from './actions/create-batch';
 
 // Add batch interfaces
 interface Batch {
@@ -83,8 +83,8 @@ export default function OrdersPage() {
       // Get the actual order data for selected items
       const selectedOrderData = events.filter(event => selectedItems.has(event.id));
       
-      // Use enhanced batch creation with image processing
-      const result = await createBatchWithProcessedImages(selectedOrderData, batchName.trim());
+      // Create batch without image processing
+      const result = await createBatch(selectedOrderData, batchName.trim());
       
       if (result.success && result.batch) {
         // Save to localStorage
@@ -92,8 +92,7 @@ export default function OrdersPage() {
         const updatedBatches = [...currentBatches, result.batch];
         saveBatches(updatedBatches);
 
-        console.log('Batch created with processed images:', result.batch);
-        console.log(`📊 Processed ${Object.keys(result.batch.processed_images || {}).length}/${selectedOrderData.length} images`);
+        console.log('Batch created:', result.batch);
         
         // Reset state
         setSelectedItems(new Set());
@@ -101,8 +100,7 @@ export default function OrdersPage() {
         setShowBatchModal(false);
         
         // Show success message
-        const processedCount = Object.keys(result.batch.processed_images || {}).length;
-        alert(`Batch "${result.batch.name}" created with ${result.batch.order_ids.length} orders!\n${processedCount} sticker sheet layouts processed and saved to cloud storage.`);
+        alert(`Batch "${result.batch.name}" created with ${result.batch.order_ids.length} orders!`);
       } else {
         console.error('Failed to create batch:', result.error);
         alert(`Failed to create batch: ${result.error}`);

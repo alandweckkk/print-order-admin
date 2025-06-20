@@ -204,9 +204,8 @@ export default function ActiveBatchPage() {
     if (batch.order_data && batch.order_data.length > 0) {
       // Convert order data to the format expected by OrderCard
       const convertedOrders = batch.order_data.map((order: any, index: number) => {
-        // Use processed blob URL if available, otherwise fallback to original image
-        const processedBlobUrl = (batch as any).processed_images?.[order.id];
-        const stickerSheetUrl = processedBlobUrl || order.mr_output_image_url || order.output_image_url || "/api/placeholder/400/500";
+        // Use original image URL 
+        const stickerSheetUrl = order.mr_original_output_image_url || order.mr_output_image_url || order.output_image_url || "/api/placeholder/400/500";
         
         return {
           id: order.id,
@@ -215,9 +214,7 @@ export default function ActiveBatchPage() {
           userEmail: order.pmo_email || order.user_id || `user${order.id}@example.com`,
           stickerSheetUrl: stickerSheetUrl,
           envelopeUrl: "/api/placeholder/300/200", // Default envelope
-          status: order.pmo_status === "shipped" ? "Printed" : "Ready",
-          // Add processed status for display
-          isProcessed: !!processedBlobUrl
+          status: order.pmo_status === "shipped" ? "Printed" : "Ready"
         };
       });
       setOrders(convertedOrders);
