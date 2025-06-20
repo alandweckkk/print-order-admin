@@ -176,9 +176,38 @@ export default function ActiveBatchPage() {
     const loadedBatches = stored ? JSON.parse(stored) : [];
     setBatches(loadedBatches);
     
-    // Auto-select first batch if available and none selected
+    // Auto-select newest batch if available and none selected
     if (loadedBatches.length > 0 && !selectedBatchId) {
-      selectBatch(loadedBatches[0].batch_id);
+      // Sort batches by created_at in descending order (newest first)
+      const sortedBatches = [...loadedBatches].sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      // Use the newest batch directly since batches state hasn't updated yet
+      selectBatchDirectly(sortedBatches[0]);
+    }
+  };
+
+  const selectBatchDirectly = (batch: Batch) => {
+    setSelectedBatchId(batch.batch_id);
+    setActiveBatch(batch);
+    setCurrentOrderIndex(0); // Reset to first order
+    
+    // Load actual order data from the batch
+    if (batch.order_data && batch.order_data.length > 0) {
+      // Convert order data to the format expected by OrderCard
+      const convertedOrders = batch.order_data.map((order: any, index: number) => ({
+        id: order.id,
+        modelRunId: order.mr_id || `MR-${Date.now()}-${index}`,
+        orderNumber: order.pmo_order_number || `ORD-${order.id}`,
+        userEmail: order.pmo_email || order.user_id || `user${order.id}@example.com`,
+        stickerSheetUrl: order.mr_output_image_url || order.output_image_url || "/api/placeholder/400/500",
+        envelopeUrl: "/api/placeholder/300/200", // Default envelope
+        status: order.pmo_status === "shipped" ? "Printed" : "Ready"
+      }));
+      setOrders(convertedOrders);
+    } else {
+      // Fallback to empty orders if no data
+      setOrders([]);
     }
   };
 
@@ -338,6 +367,17 @@ export default function ActiveBatchPage() {
 
             {/* Action Buttons */}
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              <Button
+                variant="outline"
+                onClick={() => console.log('Copy print layout images...')}
+                className="border-gray-300"
+                size={isMobile ? "sm" : "default"}
+                disabled={!activeBatch}
+              >
+                <Download className="h-4 w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Copy Print Layout Images</span>
+                <span className="sm:hidden">Copy Images</span>
+              </Button>
               <Button
                 variant="outline"
                 onClick={handlePrintLabels}

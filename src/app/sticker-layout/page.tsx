@@ -4,6 +4,7 @@ import { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { prepareLayout } from './actions/prepareLayout';
+import { saveStickerSheetToBlob } from './actions/save-to-blob';
 import { Upload, Link, FolderOpen } from 'lucide-react';
 
 type InputMethod = 'file' | 'url' | 'drop';
@@ -12,10 +13,12 @@ export default function StickerLayoutPage() {
   const [loading, setLoading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [downloadBlob, setDownloadBlob] = useState<Blob | null>(null);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [inputMethod, setInputMethod] = useState<InputMethod>('drop');
   const [imageUrl, setImageUrl] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [savingToBlob, setSavingToBlob] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const processImage = async (formData: FormData) => {
@@ -23,18 +26,36 @@ export default function StickerLayoutPage() {
     setError(null);
     setPreviewUrl(null);
     setDownloadBlob(null);
+    setBlobUrl(null);
 
     try {
-      // Call server action
+      // Call server action to process the image
       const resultArrayBuffer = await prepareLayout(formData);
 
-      // Convert ArrayBuffer to Blob
+      // Convert ArrayBuffer to Blob for local preview/download
       const resultBlob = new Blob([resultArrayBuffer], { type: "image/png" });
 
       // Create preview URL
       const previewBlobUrl = URL.createObjectURL(resultBlob);
       setPreviewUrl(previewBlobUrl);
       setDownloadBlob(resultBlob);
+
+      // Save to Vercel Blob storage after showing preview
+      setSavingToBlob(true);
+      try {
+        // Get original filename if available
+        const file = formData.get("image") as File;
+        const originalFileName = file?.name;
+        
+        const blobResult = await saveStickerSheetToBlob(resultArrayBuffer, originalFileName);
+        setBlobUrl(blobResult.url);
+        console.log('✅ Image saved to blob storage:', blobResult.url);
+      } catch (blobError) {
+        console.error('⚠️ Failed to save to blob storage (non-critical):', blobError);
+        // Don't throw here - the main functionality still works without blob storage
+      } finally {
+        setSavingToBlob(false);
+      }
     } catch (err) {
       console.error('Error processing image:', err);
       setError(err instanceof Error ? err.message : 'An error occurred processing the image');
@@ -123,6 +144,7 @@ export default function StickerLayoutPage() {
   const resetUpload = () => {
     setPreviewUrl(null);
     setDownloadBlob(null);
+    setBlobUrl(null);
     setError(null);
     setImageUrl('');
     if (fileInputRef.current) {
@@ -342,8 +364,34 @@ export default function StickerLayoutPage() {
                     </Button>
                   </div>
                   
-                  <div className="text-center text-sm text-gray-500">
-                    <p>Downloaded image will be clean without annotations • Perfect for printing</p>
+                  {/* Blob Storage Status */}
+                  <div className="text-center text-sm">
+                    {savingToBlob && (
+                      <div className="text-blue-600 flex items-center justify-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                        Saving to cloud storage...
+                      </div>
+                    )}
+                    {blobUrl && !savingToBlob && (
+                      <div className="text-green-600 space-y-2">
+                        <div className="flex items-center justify-center gap-2">
+                          <span>✅ Saved to cloud storage</span>
+                        </div>
+                        <div className="text-xs text-gray-500 break-all max-w-md mx-auto">
+                          <a 
+                            href={blobUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline"
+                          >
+                            {blobUrl}
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                    {!blobUrl && !savingToBlob && (
+                      <p className="text-gray-500">Downloaded image will be clean without annotations • Perfect for printing</p>
+                    )}
                   </div>
                 </div>
               </CardContent>
