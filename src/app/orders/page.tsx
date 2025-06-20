@@ -546,10 +546,10 @@ export default function OrdersPage() {
         return <PopoverCutoffText text={formatted} className="font-medium whitespace-nowrap" />;
       case 'mr_duration_ms':
         const duration = value ? `${value}ms` : '-';
-        return <PopoverCutoffText text={duration} className="whitespace-nowrap" style={{ fontSize: '12px' }} />;
+        return <PopoverCutoffText text={duration} className="whitespace-nowrap" style={{ fontSize: '10px' }} />;
       case 'mr_credits_used':
         const credits = value ? String(value) : '-';
-        return <PopoverCutoffText text={credits} className="whitespace-nowrap" style={{ fontSize: '12px' }} />;
+        return <PopoverCutoffText text={credits} className="whitespace-nowrap" style={{ fontSize: '10px' }} />;
       case 'payment_source':
         return (
           <Badge className={getPaymentSourceColor(value as string)}>
@@ -586,7 +586,7 @@ export default function OrdersPage() {
         const payloadStr = value ? JSON.stringify(value) : '-';
         return <PopoverCutoffText text={payloadStr} className="font-mono whitespace-nowrap" style={{ fontSize: '10px' }} />;
       case 'created_timestamp':
-        if (!value) return <PopoverCutoffText text="-" className="whitespace-nowrap" style={{ fontSize: '12px' }} />;
+        if (!value) return <PopoverCutoffText text="-" className="whitespace-nowrap" style={{ fontSize: '10px' }} />;
         const timestamp = typeof value === 'number' ? value * 1000 : new Date(value as string).getTime();
         const formattedTimestamp = new Date(timestamp).toLocaleDateString('en-US', {
           year: 'numeric',
@@ -596,10 +596,10 @@ export default function OrdersPage() {
           minute: '2-digit',
           hour12: true
         });
-        return <PopoverCutoffText text={formattedTimestamp} className="whitespace-nowrap" style={{ fontSize: '12px' }} />;
+        return <PopoverCutoffText text={formattedTimestamp} className="whitespace-nowrap" style={{ fontSize: '10px' }} />;
       case 'created_timestamp_est':
         // Remove year from created_timestamp_est display
-        if (!value) return <PopoverCutoffText text="-" className="whitespace-nowrap" style={{ fontSize: '12px' }} />;
+        if (!value) return <PopoverCutoffText text="-" className="whitespace-nowrap" style={{ fontSize: '10px' }} />;
         const estDate = new Date(value as string);
         const estFormatted = estDate.toLocaleDateString('en-US', {
           month: 'short',
@@ -607,7 +607,7 @@ export default function OrdersPage() {
           hour: '2-digit',
           minute: '2-digit'
         });
-        return <PopoverCutoffText text={estFormatted} className="whitespace-nowrap" style={{ fontSize: '12px' }} />;
+        return <PopoverCutoffText text={estFormatted} className="whitespace-nowrap" style={{ fontSize: '10px' }} />;
       case 'pmo_shipped_at':
       case 'pmo_delivered_at':
       case 'pmo_created_at':
@@ -634,10 +634,10 @@ export default function OrdersPage() {
         return <PopoverCutoffText text={idText} className="font-mono whitespace-nowrap" style={{ fontSize: '10px' }} />;
       case 'id':
         const idValue = value ? String(value) : '-';
-        return <PopoverCutoffText text={idValue} className="font-mono whitespace-nowrap" style={{ fontSize: '12px' }} />;
+        return <PopoverCutoffText text={idValue} className="font-mono whitespace-nowrap" style={{ fontSize: '10px' }} />;
       default:
         const defaultText = value ? String(value) : '-';
-        return <PopoverCutoffText text={defaultText} className="whitespace-nowrap" style={{ fontSize: '12px' }} />;
+        return <PopoverCutoffText text={defaultText} className="whitespace-nowrap" style={{ fontSize: '10px' }} />;
     }
   };
 
