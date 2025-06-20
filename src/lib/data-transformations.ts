@@ -292,7 +292,7 @@ export function getOptimalRowHeight(event: CombinedOrderEvent, visibleColumns: s
       contentComplexity += 1;
     }
 
-    if (column === 'pmor_internal_notes' && value && String(value).length > 50) {
+    if (false) { // Removed pmor_internal_notes functionality
       contentComplexity += 2;
     }
   });

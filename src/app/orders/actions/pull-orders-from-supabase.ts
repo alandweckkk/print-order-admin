@@ -58,14 +58,7 @@ export interface CombinedOrderEvent extends StripeCapturedEvent {
   mr_output_images: any | null;
   mr_credits_used: number | null;
   mr_model_version: string | null;
-  // Physical mail orders retool catch-all fields (prefixed to avoid conflicts)
-  // We'll aggregate multiple records by purpose
-  pmor_dashboard_status: string | null;
-  pmor_assigned_to: string | null;
-  pmor_priority_level: number | null;
-  pmor_internal_notes: string | null;
-  pmor_custom_tags: string[] | null;
-  pmor_last_updated: string | null;
+
 }
 
 export async function fetchStripeEventColumns(): Promise<string[]> {
@@ -248,35 +241,7 @@ export async function fetchTableColumns(): Promise<string[]> {
   }
 }
 
-/**
- * Returns the display names for the Physical Mail Orders Retool catch-all columns.
- * 
- * IMPORTANT: These are UI-friendly names that map to generic database columns:
- * - dashboard_status → text_field_1 (purpose='dashboard_status')
- * - assigned_to → text_field_2 (purpose='dashboard_status')
- * - priority_level → integer_field_1 (purpose='dashboard_status')
- * - internal_notes → text_field_1 (purpose='internal_notes')
- * - custom_tags → json_field_1 (purpose='custom_tags')
- * - last_updated → updated_at (aggregated from most recent record)
- * 
- * The catch-all table uses a flexible schema with generic column names
- * (text_field_1, integer_field_1, etc.) to allow for various data types.
- * The 'purpose' field determines what kind of data is stored in each row.
- */
-export async function fetchPhysicalMailOrderRetoolColumns(): Promise<string[]> {
-  "use server";
-  
-  // For the catch-all table, we return logical columns based on common purposes
-  // These map to different field combinations based on the purpose
-  return [
-    'dashboard_status',
-    'assigned_to', 
-    'priority_level',
-    'internal_notes',
-    'custom_tags',
-    'last_updated'
-  ];
-}
+
 
 export async function fetchPhysicalStripeEvents(page: number = 1, limit: number = 100): Promise<{ events: CombinedOrderEvent[], total: number }> {
   "use server";
@@ -328,17 +293,13 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
       return { events: [], total: totalCount || 0 };
     }
 
-    // Extract unique payment intent IDs, model run IDs, and stripe event IDs from current page
+    // Extract unique payment intent IDs and model run IDs from current page
     const paymentIntentIds = stripeEvents
       .map(event => event.payload?.data?.object?.id || event.payload?.payment_intent_id)
       .filter(Boolean);
     
     const modelRunIds = stripeEvents
       .map(event => event.model_run_id)
-      .filter(Boolean);
-    
-    const stripeEventIds = stripeEvents
-      .map(event => event.id)
       .filter(Boolean);
 
     // Get only the physical mail orders that match current page's payment intents
@@ -377,48 +338,12 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
       // Continue anyway - we can still show stripe data without model runs data
     }
 
-    // Get ALL catch-all records that match current page's stripe event IDs
-    console.log('Fetching physical_mail_orders_retool_catch_all for current page...');
-    const { data: catchAllRecords, error: catchAllError } = await supabase
-      .from('physical_mail_orders_retool_catch_all')
-      .select('*')
-      .in('stripe_event_id', stripeEventIds)
-      .order('created_at', { ascending: false }); // Get most recent records first
 
-    console.log('Catch-all records query result:', { 
-      data: catchAllRecords?.length, 
-      error: catchAllError,
-      firstRecord: catchAllRecords?.[0] ? 'EXISTS' : 'NONE'
-    });
-
-    if (catchAllError) {
-      console.error('CATCH-ALL RECORDS ERROR:', catchAllError);
-      // Continue anyway - we can still show stripe data without catch-all data
-    }
-
-    // Group catch-all records by stripe_event_id and purpose
-    const catchAllByEventId: Record<number, Record<string, any>> = {};
-    if (catchAllRecords) {
-      catchAllRecords.forEach((record: any) => {
-        const eventId = record.stripe_event_id;
-        if (!catchAllByEventId[eventId]) {
-          catchAllByEventId[eventId] = {};
-        }
-        
-        // Store the most recent record for each purpose
-        if (!catchAllByEventId[eventId][record.purpose] || 
-            new Date(record.created_at) > new Date(catchAllByEventId[eventId][record.purpose].created_at)) {
-          catchAllByEventId[eventId][record.purpose] = record;
-        }
-      });
-    }
 
     console.log('=== DATA SUMMARY ===');
     console.log('Stripe events found:', stripeEvents?.length);
     console.log('Physical orders found:', physicalOrders?.length);
     console.log('Model runs found:', modelRuns?.length);
-    console.log('Catch-all records found:', catchAllRecords?.length);
-    console.log('Unique stripe events with catch-all data:', Object.keys(catchAllByEventId).length);
 
     // Sample first few payment_intent_ids for debugging
     if (stripeEvents?.length > 0) {
@@ -439,7 +364,6 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
     // Combine the data by matching payment_intent_id from stripe payload
     let joinMatches = 0;
     let modelRunMatches = 0;
-    let catchAllMatches = 0;
     const combinedData = stripeEvents.map((stripe: any) => {
       // Extract payment_intent_id from stripe payload - the ID is nested in data.object.id
       const paymentIntentId = stripe.payload?.data?.object?.id || stripe.payload?.payment_intent_id;
@@ -461,17 +385,6 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
       if (matchingModelRun) {
         modelRunMatches++;
       }
-
-      // Get all catch-all records for this stripe event
-      const eventCatchAll = catchAllByEventId[stripe.id] || {};
-      if (Object.keys(eventCatchAll).length > 0) {
-        catchAllMatches++;
-      }
-
-      // Extract specific purpose data from catch-all records
-      const dashboardStatus = eventCatchAll['dashboard_status'];
-      const internalNotes = eventCatchAll['internal_notes'];
-      const customTags = eventCatchAll['custom_tags'];
 
       return {
         ...stripe,
@@ -515,13 +428,6 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
         mr_output_images: matchingModelRun?.output_images || null,
         mr_credits_used: matchingModelRun?.credits_used || null,
         mr_model_version: matchingModelRun?.model_version || null,
-        // Add prefixed catch-all fields based on purpose
-        pmor_dashboard_status: dashboardStatus?.text_field_1 || null,
-        pmor_assigned_to: dashboardStatus?.text_field_2 || null,
-        pmor_priority_level: dashboardStatus?.integer_field_1 || null,
-        pmor_internal_notes: internalNotes?.text_field_1 || null,
-        pmor_custom_tags: customTags?.json_field_1 || null,
-        pmor_last_updated: dashboardStatus?.updated_at || internalNotes?.updated_at || customTags?.updated_at || null,
       };
     });
 
@@ -529,7 +435,6 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
     console.log('Combined records created:', combinedData?.length);
     console.log('Join matches found:', joinMatches, 'out of', stripeEvents.length, 'stripe events');
     console.log('Model run matches found:', modelRunMatches, 'out of', stripeEvents.length, 'stripe events');
-    console.log('Catch-all matches found:', catchAllMatches, 'out of', stripeEvents.length, 'stripe events');
     
     // Debug: Log first 10 records to see what data we have
     console.log('=== FIRST 10 RECORDS (SAMPLE) ===');
@@ -538,12 +443,6 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
       console.log('Stripe Event ID:', record.id);
       console.log('Model Run ID (stripe):', record.model_run_id);
       console.log('Model Run Data (mr_id):', record.mr_id);
-      console.log('Catch-all Data:');
-      console.log('  - Dashboard Status:', record.pmor_dashboard_status);
-      console.log('  - Assigned To:', record.pmor_assigned_to);
-      console.log('  - Priority Level:', record.pmor_priority_level);
-      console.log('  - Internal Notes:', record.pmor_internal_notes);
-      console.log('  - Custom Tags:', record.pmor_custom_tags);
       console.log('Output Image URLs:');
       console.log('  - stripe output_image_url:', record.output_image_url);
       console.log('  - pmo_output_image_url:', record.pmo_output_image_url);
@@ -566,76 +465,3 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
   }
 }
 
-export async function updateRetoolField(
-  stripeEventId: number,
-  fieldName: string,
-  value: any
-): Promise<{ success: boolean; error?: string }> {
-  "use server";
-  
-  try {
-    const supabase = await createAdminClient();
-    
-    // Map field names to purpose and database columns
-    const fieldMapping: Record<string, { purpose: string; field: string; valueField: string }> = {
-      'pmor_dashboard_status': { purpose: 'dashboard_status', field: 'text_field_1', valueField: 'text' },
-      'pmor_assigned_to': { purpose: 'dashboard_status', field: 'text_field_2', valueField: 'text' },
-      'pmor_priority_level': { purpose: 'dashboard_status', field: 'integer_field_1', valueField: 'integer' },
-      'pmor_internal_notes': { purpose: 'internal_notes', field: 'text_field_1', valueField: 'text' },
-      'pmor_custom_tags': { purpose: 'custom_tags', field: 'json_field_1', valueField: 'json' }
-    };
-    
-    const mapping = fieldMapping[fieldName];
-    if (!mapping) {
-      return { success: false, error: `Unknown field: ${fieldName}` };
-    }
-    
-    // Check if a record already exists for this purpose
-    const { data: existingRecord, error: fetchError } = await supabase
-      .from('physical_mail_orders_retool_catch_all')
-      .select('id')
-      .eq('stripe_event_id', stripeEventId)
-      .eq('purpose', mapping.purpose)
-      .single();
-    
-    if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 means no rows found
-      console.error('Error checking existing record:', fetchError);
-      return { success: false, error: fetchError.message };
-    }
-    
-    const updateData: any = {
-      stripe_event_id: stripeEventId,
-      purpose: mapping.purpose,
-      [mapping.field]: value,
-      updated_at: new Date().toISOString()
-    };
-    
-    if (existingRecord) {
-      // Update existing record
-      const { error: updateError } = await supabase
-        .from('physical_mail_orders_retool_catch_all')
-        .update(updateData)
-        .eq('id', existingRecord.id);
-      
-      if (updateError) {
-        console.error('Error updating record:', updateError);
-        return { success: false, error: updateError.message };
-      }
-    } else {
-      // Insert new record
-      const { error: insertError } = await supabase
-        .from('physical_mail_orders_retool_catch_all')
-        .insert(updateData);
-      
-      if (insertError) {
-        console.error('Error inserting record:', insertError);
-        return { success: false, error: insertError.message };
-      }
-    }
-    
-    return { success: true };
-  } catch (error) {
-    console.error('Error in updateRetoolField:', error);
-    return { success: false, error: String(error) };
-  }
-}
