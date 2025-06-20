@@ -43,6 +43,7 @@ interface Order {
   stickerSheetUrl: string;
   envelopeUrl: string;
   status: string;
+  isProcessed?: boolean; // Whether the sticker sheet is a processed blob URL
 }
 
 type ViewMode = 'horizontal' | 'gallery' | 'one-by-one';
@@ -83,7 +84,14 @@ function OrderCard({ order, onRemove, className = "", size = 'medium' }: OrderCa
               className={size === 'one-by-one-huge' ? 'h-full w-auto object-contain' : 'w-full h-full object-cover'}
             />
           </div>
-          <p className="text-xs text-gray-500 font-medium">Sticker Sheet</p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-gray-500 font-medium">Sticker Sheet</p>
+            {order.isProcessed && (
+              <Badge className="bg-green-100 text-green-700 text-xs px-1 py-0">
+                3-up Layout
+              </Badge>
+            )}
+          </div>
         </div>
 
         {/* Envelope Preview */}
@@ -195,15 +203,23 @@ export default function ActiveBatchPage() {
     // Load actual order data from the batch
     if (batch.order_data && batch.order_data.length > 0) {
       // Convert order data to the format expected by OrderCard
-      const convertedOrders = batch.order_data.map((order: any, index: number) => ({
-        id: order.id,
-        modelRunId: order.mr_id || `MR-${Date.now()}-${index}`,
-        orderNumber: order.pmo_order_number || `ORD-${order.id}`,
-        userEmail: order.pmo_email || order.user_id || `user${order.id}@example.com`,
-        stickerSheetUrl: order.mr_output_image_url || order.output_image_url || "/api/placeholder/400/500",
-        envelopeUrl: "/api/placeholder/300/200", // Default envelope
-        status: order.pmo_status === "shipped" ? "Printed" : "Ready"
-      }));
+      const convertedOrders = batch.order_data.map((order: any, index: number) => {
+        // Use processed blob URL if available, otherwise fallback to original image
+        const processedBlobUrl = (batch as any).processed_images?.[order.id];
+        const stickerSheetUrl = processedBlobUrl || order.mr_output_image_url || order.output_image_url || "/api/placeholder/400/500";
+        
+        return {
+          id: order.id,
+          modelRunId: order.mr_id || `MR-${Date.now()}-${index}`,
+          orderNumber: order.pmo_order_number || `ORD-${order.id}`,
+          userEmail: order.pmo_email || order.user_id || `user${order.id}@example.com`,
+          stickerSheetUrl: stickerSheetUrl,
+          envelopeUrl: "/api/placeholder/300/200", // Default envelope
+          status: order.pmo_status === "shipped" ? "Printed" : "Ready",
+          // Add processed status for display
+          isProcessed: !!processedBlobUrl
+        };
+      });
       setOrders(convertedOrders);
     } else {
       // Fallback to empty orders if no data
@@ -221,15 +237,23 @@ export default function ActiveBatchPage() {
       // Load actual order data from the batch
       if (batch.order_data && batch.order_data.length > 0) {
         // Convert order data to the format expected by OrderCard
-        const convertedOrders = batch.order_data.map((order: any, index: number) => ({
-          id: order.id,
-          modelRunId: order.mr_id || `MR-${Date.now()}-${index}`,
-          orderNumber: order.pmo_order_number || `ORD-${order.id}`,
-          userEmail: order.pmo_email || order.user_id || `user${order.id}@example.com`,
-          stickerSheetUrl: order.mr_output_image_url || order.output_image_url || "/api/placeholder/400/500",
-          envelopeUrl: "/api/placeholder/300/200", // Default envelope
-          status: order.pmo_status === "shipped" ? "Printed" : "Ready"
-        }));
+        const convertedOrders = batch.order_data.map((order: any, index: number) => {
+          // Use processed blob URL if available, otherwise fallback to original image
+          const processedBlobUrl = (batch as any).processed_images?.[order.id];
+          const stickerSheetUrl = processedBlobUrl || order.mr_output_image_url || order.output_image_url || "/api/placeholder/400/500";
+          
+          return {
+            id: order.id,
+            modelRunId: order.mr_id || `MR-${Date.now()}-${index}`,
+            orderNumber: order.pmo_order_number || `ORD-${order.id}`,
+            userEmail: order.pmo_email || order.user_id || `user${order.id}@example.com`,
+            stickerSheetUrl: stickerSheetUrl,
+            envelopeUrl: "/api/placeholder/300/200", // Default envelope
+            status: order.pmo_status === "shipped" ? "Printed" : "Ready",
+            // Add processed status for display
+            isProcessed: !!processedBlobUrl
+          };
+        });
         setOrders(convertedOrders);
       } else {
         // Fallback to empty orders if no data
@@ -395,7 +419,7 @@ export default function ActiveBatchPage() {
 
         {/* Active Batch Info Bar */}
         {activeBatch && (
-          <div className="bg-blue-50 border-b border-blue-200 px-4 sm:px-8 py-3">
+          <div className="bg-blue-50 border-b border-blue-200 px-4 sm:px-8 py-3 relative">
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="font-medium text-blue-900">Active Batch: {activeBatch.name}</h4>
@@ -437,11 +461,30 @@ export default function ActiveBatchPage() {
                 )}
               </div>
             </div>
+            
+            {/* Centered Green Button */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <Button 
+                className="bg-green-500 hover:bg-green-600 text-white pointer-events-auto"
+                style={{ width: '180px', height: '50px' }}
+              >
+                Create Sticker Sheets
+              </Button>
+            </div>
           </div>
         )}
 
         {/* Content Area */}
-        <div className="p-4 sm:p-8">
+        <div className="p-4 sm:p-8 relative">
+          {/* Centered Layout All in Batch Image */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <img 
+              src="/layout-all-in-batch.png" 
+              alt="Layout All in Batch"
+              className="max-w-full max-h-full object-contain opacity-10"
+            />
+          </div>
+
           {/* Order Views - Only show when there's an active batch */}
           {activeBatch && orders.length > 0 && (
             <>

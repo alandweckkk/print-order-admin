@@ -59,6 +59,38 @@ export async function getImageBuffer(formData: FormData): Promise<Buffer> {
 }
 
 /**
+ * Download image from URL and convert to Buffer
+ */
+export async function getImageBufferFromUrl(imageUrl: string): Promise<Buffer> {
+  try {
+    // Validate URL
+    new URL(imageUrl);
+    
+    // Fetch the image from URL
+    const response = await fetch(imageUrl);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+    }
+
+    // Check if the response is an image
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('image')) {
+      throw new Error('URL does not point to an image');
+    }
+
+    // Convert response to buffer
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to process image URL: ${error.message}`);
+    }
+    throw new Error('Failed to process image URL');
+  }
+}
+
+/**
  * Process an image to create a 3-up vertical sticker sheet layout
  */
 export async function createStickerSheet(
@@ -115,6 +147,26 @@ export async function createStickerSheet(
   .toBuffer();
 
   return finalBuffer;
+}
+
+/**
+ * Process image URL into sticker sheet layout and return buffer
+ */
+export async function createStickerSheetFromUrl(
+  imageUrl: string,
+  options: {
+    canvasWidth?: number;
+    canvasHeight?: number;
+    stickerHeight?: number;
+    yPositions?: number[];
+    backgroundColor?: { r: number; g: number; b: number };
+  } = {}
+): Promise<Buffer> {
+  // Step 1: Download image from URL
+  const inputBuffer = await getImageBufferFromUrl(imageUrl);
+  
+  // Step 2: Create sticker sheet layout
+  return await createStickerSheet(inputBuffer, options);
 }
 
 /**

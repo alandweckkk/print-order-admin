@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 
 import { fetchPhysicalStripeEvents, fetchStripeEventColumns, fetchPhysicalMailOrderColumns, fetchModelRunsColumns, CombinedOrderEvent } from './actions/pull-orders-from-supabase';
 import { getCurrentAdminDefaults, saveCurrentAdminDefaults, ColumnConfig } from './actions/admin-profiles';
+import { createBatchWithProcessedImages } from './actions/create-batch-with-processed-images';
 
 // Add batch interfaces
 interface Batch {
@@ -73,39 +74,45 @@ export default function OrdersPage() {
     localStorage.setItem('print_order_batches', JSON.stringify(batches));
   };
 
-  const createBatch = () => {
+  const createBatch = async () => {
     if (!batchName.trim()) return;
     
     setIsCreatingBatch(true);
     
-    // Get the actual order data for selected items
-    const selectedOrderData = events.filter(event => selectedItems.has(event.id));
-    
-    // Create batch with timestamp ID
-    const batch_id = Date.now().toString();
-    const newBatch: Batch = {
-      batch_id,
-      name: batchName.trim(),
-      created_at: new Date().toISOString(),
-      order_ids: Array.from(selectedItems),
-      order_data: selectedOrderData // Store the actual order data
-    };
+    try {
+      // Get the actual order data for selected items
+      const selectedOrderData = events.filter(event => selectedItems.has(event.id));
+      
+      // Use enhanced batch creation with image processing
+      const result = await createBatchWithProcessedImages(selectedOrderData, batchName.trim());
+      
+      if (result.success && result.batch) {
+        // Save to localStorage
+        const currentBatches = getBatches();
+        const updatedBatches = [...currentBatches, result.batch];
+        saveBatches(updatedBatches);
 
-    // Save to localStorage
-    const currentBatches = getBatches();
-    const updatedBatches = [...currentBatches, newBatch];
-    saveBatches(updatedBatches);
-
-    console.log('Batch created:', newBatch);
-    
-    // Reset state
-    setSelectedItems(new Set());
-    setBatchName('');
-    setShowBatchModal(false);
-    setIsCreatingBatch(false);
-    
-    // Optional: Show success message or redirect
-    alert(`Batch "${newBatch.name}" created with ${newBatch.order_ids.length} orders!`);
+        console.log('Batch created with processed images:', result.batch);
+        console.log(`📊 Processed ${Object.keys(result.batch.processed_images || {}).length}/${selectedOrderData.length} images`);
+        
+        // Reset state
+        setSelectedItems(new Set());
+        setBatchName('');
+        setShowBatchModal(false);
+        
+        // Show success message
+        const processedCount = Object.keys(result.batch.processed_images || {}).length;
+        alert(`Batch "${result.batch.name}" created with ${result.batch.order_ids.length} orders!\n${processedCount} sticker sheet layouts processed and saved to cloud storage.`);
+      } else {
+        console.error('Failed to create batch:', result.error);
+        alert(`Failed to create batch: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error creating batch:', error);
+      alert('An error occurred while creating the batch');
+    } finally {
+      setIsCreatingBatch(false);
+    }
   };
 
   const handleCreateBatchClick = () => {
