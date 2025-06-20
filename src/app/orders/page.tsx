@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,12 @@ export default function OrdersPage() {
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [batchName, setBatchName] = useState('');
   const [isCreatingBatch, setIsCreatingBatch] = useState(false);
+
+  // Add dropdown state for the new filter dropdown
+  const [filterDropdownValue, setFilterDropdownValue] = useState<string>('');
+
+  // Add search state
+  const [searchTerm, setSearchTerm] = useState<string>('');
 
   // Batch management functions
   const getBatches = (): Batch[] => {
@@ -117,16 +123,38 @@ export default function OrdersPage() {
   // Handle select all/deselect all
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      const allEventIds = events.map(event => event.id);
+      const allEventIds = filteredData.map(event => event.id);
       setSelectedItems(new Set(allEventIds));
     } else {
       setSelectedItems(new Set());
     }
   };
 
-  // Check if all items are selected
-  const isAllSelected = events.length > 0 && selectedItems.size === events.length;
-  const isIndeterminate = selectedItems.size > 0 && selectedItems.size < events.length;
+  // Calculate total pages
+  const totalPages = Math.ceil(totalEvents / eventsPerPage);
+
+  // Filter data based on search term
+  const filteredData = useMemo(() => {
+    if (!searchTerm.trim()) return events;
+    
+    return events.filter((item) => {
+      // Search across all fields in the item
+      const searchableText = Object.values(item)
+        .map(value => {
+          if (value === null || value === undefined) return '';
+          if (typeof value === 'object') return JSON.stringify(value);
+          return String(value);
+        })
+        .join(' ')
+        .toLowerCase();
+      
+      return searchableText.includes(searchTerm.toLowerCase());
+    });
+  }, [events, searchTerm]);
+
+  // Check if all items are selected (moved after filteredData)
+  const isAllSelected = filteredData.length > 0 && selectedItems.size === filteredData.length;
+  const isIndeterminate = selectedItems.size > 0 && selectedItems.size < filteredData.length;
 
   // Handle saving edits
   const handleSaveEdit = async (eventId: number, field: string, value: any) => {
@@ -641,9 +669,6 @@ export default function OrdersPage() {
     }
   };
 
-  // Calculate total pages
-  const totalPages = Math.ceil(totalEvents / eventsPerPage);
-
   return (
     <div className="p-8">
       <div className="max-w-[3000px] mx-auto">
@@ -946,6 +971,34 @@ export default function OrdersPage() {
                 </div>
               )}
               </div>
+
+              {/* Add new dropdown between eye icon and Create Batch */}
+              <Select value={filterDropdownValue} onValueChange={setFilterDropdownValue}>
+                <SelectTrigger className="w-[160px] h-9">
+                  <SelectValue placeholder="Select action..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="approved-batchable">Approved Batachable</SelectItem>
+                  <SelectItem value="contact-user">Contact User</SelectItem>
+                  <SelectItem value="alan-review">Alan Review</SelectItem>
+                  <SelectItem value="question">Question</SelectItem>
+                  <SelectItem value="hide">Hide</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Add search bar */}
+              <div className="relative">
+                <Input
+                  type="text"
+                  placeholder="Search all data..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-[200px] h-9 pl-8"
+                />
+                <svg className="w-4 h-4 absolute left-2 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
               
               <Button 
                 variant={selectedItems.size > 1 ? "default" : "outline"}
@@ -996,15 +1049,12 @@ export default function OrdersPage() {
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="border-b">
-                      <th className="text-center p-2" style={{ width: '40px' }}>
+                      <th className="w-12 p-3 text-left">
                         <input
                           type="checkbox"
-                          checked={isAllSelected}
-                          ref={(el) => {
-                            if (el) el.indeterminate = isIndeterminate;
-                          }}
-                          onChange={(e) => handleSelectAll(e.target.checked)}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                          checked={selectedItems.size > 0 && selectedItems.size === filteredData.length}
+                          onChange={handleSelectAll}
+                          className="rounded border-gray-300"
                         />
                       </th>
                       <th className="text-center p-0.5 font-normal text-gray-300 whitespace-nowrap" style={{ width: '15px', fontSize: '8px' }}>#</th>
@@ -1029,7 +1079,7 @@ export default function OrdersPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {events.map((event, index) => (
+                    {filteredData.map((event, index) => (
                       <tr key={event.id} className="border-b hover:bg-gray-50" style={{ height: '60px' }}>
                         <td className="text-center p-2 align-middle" style={{ width: '40px' }}>
                           <input
