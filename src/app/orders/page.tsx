@@ -31,6 +31,7 @@ export default function OrdersPage() {
   const [stripeColumns, setStripeColumns] = useState<string[]>([]);
   const [physicalMailColumns, setPhysicalMailColumns] = useState<string[]>([]);
   const [modelRunsColumns, setModelRunsColumns] = useState<string[]>([]);
+  const [batchColumns] = useState<string[]>(['notes', 'address_approved', 'artwork_approved', 'no_red_flags', 'has_other_orders']);
 
   const [visibleColumns, setVisibleColumns] = useState<ColumnConfig[]>([]);
   const [showColumnPopover, setShowColumnPopover] = useState(false);
@@ -74,7 +75,7 @@ export default function OrdersPage() {
     localStorage.setItem('print_order_batches', JSON.stringify(batches));
   };
 
-  const createBatch = async () => {
+  const handleCreateBatch = async () => {
     if (!batchName.trim()) return;
     
     setIsCreatingBatch(true);
@@ -183,6 +184,11 @@ export default function OrdersPage() {
     
     // Order number columns
     if (columnName.includes('order_number')) {
+      return 120;
+    }
+    
+    // Batch management columns - wider for readability
+    if (columnName.startsWith('batch_')) {
       return 120;
     }
     
@@ -409,6 +415,8 @@ export default function OrdersPage() {
       return 'text-purple-600'; // Purple for physical mail orders
     } else if (columnName.startsWith('mr_')) {
       return 'text-green-600'; // Green for model runs
+    } else if (columnName.startsWith('batch_')) {
+      return 'text-orange-600'; // Orange for batch management
     }
     return 'text-blue-600'; // Blue for stripe captured events
   };
@@ -534,7 +542,7 @@ export default function OrdersPage() {
       
       // If no valid image URL found, render as text
       const textValue = Array.isArray(value) ? JSON.stringify(value) : String(value);
-      return <PopoverCutoffText text={textValue} className="font-mono" style={{ fontSize: '10px' }} />;
+      return <PopoverCutoffText text={textValue} className="font-mono text-[8px]" />;
     }
     
     switch (columnName) {
@@ -551,10 +559,10 @@ export default function OrdersPage() {
         return <PopoverCutoffText text={formatted} className="font-medium whitespace-nowrap" />;
       case 'mr_duration_ms':
         const duration = value ? `${value}ms` : '-';
-        return <PopoverCutoffText text={duration} className="whitespace-nowrap" style={{ fontSize: '10px' }} />;
+        return <PopoverCutoffText text={duration} className="whitespace-nowrap text-[8px]" />;
       case 'mr_credits_used':
         const credits = value ? String(value) : '-';
-        return <PopoverCutoffText text={credits} className="whitespace-nowrap" style={{ fontSize: '10px' }} />;
+        return <PopoverCutoffText text={credits} className="whitespace-nowrap text-[8px]" />;
       case 'payment_source':
         return (
           <Badge className={getPaymentSourceColor(value as string)}>
@@ -589,9 +597,9 @@ export default function OrdersPage() {
       case 'mr_metadata':
       case 'mr_output_images':
         const payloadStr = value ? JSON.stringify(value) : '-';
-        return <PopoverCutoffText text={payloadStr} className="font-mono whitespace-nowrap" style={{ fontSize: '10px' }} />;
+        return <PopoverCutoffText text={payloadStr} className="font-mono whitespace-nowrap text-[8px]" />;
       case 'created_timestamp':
-        if (!value) return <PopoverCutoffText text="-" className="whitespace-nowrap" style={{ fontSize: '10px' }} />;
+        if (!value) return <PopoverCutoffText text="-" className="whitespace-nowrap text-[8px]" />;
         const timestamp = typeof value === 'number' ? value * 1000 : new Date(value as string).getTime();
         const formattedTimestamp = new Date(timestamp).toLocaleDateString('en-US', {
           year: 'numeric',
@@ -601,10 +609,10 @@ export default function OrdersPage() {
           minute: '2-digit',
           hour12: true
         });
-        return <PopoverCutoffText text={formattedTimestamp} className="whitespace-nowrap" style={{ fontSize: '10px' }} />;
+        return <PopoverCutoffText text={formattedTimestamp} className="whitespace-nowrap text-[8px]" />;
       case 'created_timestamp_est':
         // Remove year from created_timestamp_est display
-        if (!value) return <PopoverCutoffText text="-" className="whitespace-nowrap" style={{ fontSize: '10px' }} />;
+        if (!value) return <PopoverCutoffText text="-" className="whitespace-nowrap text-[8px]" />;
         const estDate = new Date(value as string);
         const estFormatted = estDate.toLocaleDateString('en-US', {
           month: 'short',
@@ -612,7 +620,7 @@ export default function OrdersPage() {
           hour: '2-digit',
           minute: '2-digit'
         });
-        return <PopoverCutoffText text={estFormatted} className="whitespace-nowrap" style={{ fontSize: '10px' }} />;
+        return <PopoverCutoffText text={estFormatted} className="whitespace-nowrap text-[8px]" />;
       case 'pmo_shipped_at':
       case 'pmo_delivered_at':
       case 'pmo_created_at':
@@ -636,13 +644,13 @@ export default function OrdersPage() {
       case 'mr_prompt':
       case 'mr_error':
         const idText = value ? String(value) : '-';
-        return <PopoverCutoffText text={idText} className="font-mono whitespace-nowrap" style={{ fontSize: '10px' }} />;
+        return <PopoverCutoffText text={idText} className="font-mono whitespace-nowrap text-[8px]" />;
       case 'id':
         const idValue = value ? String(value) : '-';
-        return <PopoverCutoffText text={idValue} className="font-mono whitespace-nowrap" style={{ fontSize: '10px' }} />;
+        return <PopoverCutoffText text={idValue} className="font-mono whitespace-nowrap text-[8px]" />;
       default:
         const defaultText = value ? String(value) : '-';
-        return <PopoverCutoffText text={defaultText} className="whitespace-nowrap" style={{ fontSize: '10px' }} />;
+        return <PopoverCutoffText text={defaultText} className="whitespace-nowrap text-[8px]" />;
     }
   };
 
@@ -826,6 +834,57 @@ export default function OrdersPage() {
                           })}
                         </div>
                       </div>
+
+                      {/* Vertical Divider */}
+                      <div className="w-px bg-gray-200 mx-3 flex-shrink-0" />
+
+                      {/* Batch Management Column */}
+                      <div style={{ width: '245px' }} className="flex-shrink-0 pl-6">
+                        <h4 className="text-base font-medium text-orange-600 mb-2">Batch Management</h4>
+                        <div className="flex gap-1 mb-4">
+                          <button
+                            onClick={() => {
+                              const batchColumnsWithPrefix = batchColumns.map(col => `batch_${col}`);
+                              setVisibleColumns(prev => [
+                                ...prev.filter(col => !batchColumnsWithPrefix.includes(col.name)),
+                                ...batchColumnsWithPrefix.map(columnName => ({
+                                  name: columnName,
+                                  width: getDefaultColumnWidth(columnName)
+                                }))
+                              ]);
+                            }}
+                            className="text-xs text-orange-600 hover:text-orange-800 hover:underline"
+                          >
+                            All
+                          </button>
+                          <span className="text-xs text-gray-400">|</span>
+                          <button
+                            onClick={() => {
+                              const batchColumnsWithPrefix = batchColumns.map(col => `batch_${col}`);
+                              setVisibleColumns(prev => prev.filter(col => !batchColumnsWithPrefix.includes(col.name)));
+                            }}
+                            className="text-xs text-orange-600 hover:text-orange-800 hover:underline"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                        <div className="space-y-2">
+                          {batchColumns.map((column) => {
+                            const prefixedColumn = `batch_${column}`;
+                            return (
+                              <label key={prefixedColumn} className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                                <input
+                                  type="checkbox"
+                                  checked={visibleColumns.some(col => col.name === prefixedColumn)}
+                                  onChange={() => toggleColumnVisibility(prefixedColumn)}
+                                  className="rounded border-gray-300 w-4 h-4"
+                                />
+                                <span className="text-gray-700 font-mono" style={{ fontSize: '10px' }}>{column}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
 
 
@@ -984,19 +1043,65 @@ export default function OrdersPage() {
                             );
                           })()}
 
+                          {/* Batch Management - Selected */}
+                          {(() => {
+                            const selectedBatchColumns = visibleColumns.filter(col => col.name.startsWith('batch_'));
+                            return selectedBatchColumns.length > 0 && (
+                              <div>
+                                <h5 className="text-xs font-medium text-orange-600 mb-2">Batch Management</h5>
+                                <div className="space-y-1 pl-2">
+                                  {selectedBatchColumns.map(columnConfig => (
+                                    <div key={columnConfig.name} className="flex items-center gap-2">
+                                      <span className="w-1 h-1 bg-orange-500 rounded-full flex-shrink-0"></span>
+                                      <span className="text-orange-600 font-mono text-xs flex-1">{columnConfig.name.substring(6)}</span>
+                                      <span className="text-orange-600 font-mono text-xs">
+                                        (
+                                        {editingWidth === columnConfig.name ? (
+                                          <input
+                                            type="number"
+                                            value={tempWidth}
+                                            onChange={(e) => setTempWidth(e.target.value)}
+                                            onBlur={() => handleWidthSave(columnConfig.name)}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') handleWidthSave(columnConfig.name);
+                                              if (e.key === 'Escape') handleWidthCancel();
+                                            }}
+                                            className="w-12 px-1 py-0 text-xs bg-white border border-orange-300 rounded"
+                                            min="50"
+                                            autoFocus
+                                          />
+                                        ) : (
+                                          <button
+                                            onClick={() => handleWidthEdit(columnConfig.name, columnConfig.width)}
+                                            className="hover:bg-orange-100 px-1 rounded"
+                                            title="Click to edit width"
+                                          >
+                                            {columnConfig.width}
+                                          </button>
+                                        )}
+                                        px)
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })()}
+
                           {/* Empty state */}
                           {(() => {
                             const totalSelected = visibleColumns.filter(col => 
                               stripeColumns.includes(col.name) || 
                               col.name.startsWith('pmo_') || 
-                              col.name.startsWith('mr_')
+                              col.name.startsWith('mr_') ||
+                              col.name.startsWith('batch_')
                             ).length;
                             return totalSelected === 0 && (
                               <div className="text-center py-8">
                                 <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                                 </svg>
-                                <p className="text-xs text-gray-500">No columns selected from<br/>the three sections</p>
+                                <p className="text-xs text-gray-500">No columns selected from<br/>the four sections</p>
                               </div>
                             );
                           })()}
@@ -1005,7 +1110,7 @@ export default function OrdersPage() {
                         {/* Info Box */}
                         <div className="mt-4 p-3 bg-gray-100/50 rounded-md border border-gray-200">
                           <p className="text-xs text-gray-600 leading-relaxed mb-2">
-                            <span className="font-semibold">Summary:</span> Currently visible columns from Stripe, Physical Mail Orders, and Model Runs sections.
+                            <span className="font-semibold">Summary:</span> Currently visible columns from Stripe, Physical Mail Orders, Model Runs, and Batch Management sections.
                           </p>
                           <p className="text-xs text-green-600 leading-relaxed">
                             <span className="font-semibold">💾 Admin Defaults:</span> Column visibility loaded from {currentAdminName}'s profile. Use the green "Save Column Defaults" button in the header to persist changes.
@@ -1158,14 +1263,13 @@ export default function OrdersPage() {
                             </svg>
                             <PopoverCutoffText 
                               text={formatColumnHeader(columnConfig.name)} 
-                              className="whitespace-nowrap" 
-                              style={{ fontSize: '10px' }}
+                              className="whitespace-nowrap text-[8px]"
                             />
                           </div>
                         </th>
                       ))}
-                      <th className="text-left p-3 font-medium text-xs whitespace-nowrap overflow-hidden text-ellipsis" style={{ width: '80px', fontSize: '10px' }}>Actions</th>
-                      <th className="text-center p-3 font-medium text-xs whitespace-nowrap" style={{ width: '60px', fontSize: '10px' }}>Send</th>
+                      <th className="text-left p-3 font-medium text-xs whitespace-nowrap overflow-hidden text-ellipsis" style={{ width: '80px', fontSize: '8px' }}>Actions</th>
+                      <th className="text-center p-3 font-medium text-xs whitespace-nowrap" style={{ width: '60px', fontSize: '8px' }}>Send</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1180,7 +1284,7 @@ export default function OrdersPage() {
                           />
                         </td>
                         <td className="text-center p-0.5 align-middle" style={{ width: '15px' }}>
-                          <div className="text-gray-300" style={{ fontSize: '10px' }}>{((currentPage - 1) * eventsPerPage) + index + 1}</div>
+                          <div className="text-gray-300" style={{ fontSize: '8px' }}>{((currentPage - 1) * eventsPerPage) + index + 1}</div>
                         </td>
                         {visibleColumns.map((columnConfig, colIndex) => (
                           <td 
@@ -1292,7 +1396,7 @@ export default function OrdersPage() {
                   placeholder="Enter batch name..."
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && batchName.trim()) {
-                      createBatch();
+                      handleCreateBatch();
                     }
                   }}
                 />
@@ -1313,7 +1417,7 @@ export default function OrdersPage() {
                 Cancel
               </Button>
               <Button
-                onClick={createBatch}
+                onClick={handleCreateBatch}
                 disabled={!batchName.trim() || isCreatingBatch}
               >
                 {isCreatingBatch ? 'Creating...' : 'Create Batch'}
