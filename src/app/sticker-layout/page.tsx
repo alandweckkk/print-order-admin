@@ -76,7 +76,7 @@ export default function StickerLayoutPage() {
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Sticker Sheet Layout</h1>
-          <p className="text-gray-600 mt-2">Enter an image URL to create a 3-up vertical sticker sheet that's print-ready</p>
+          <p className="text-gray-600 mt-2">Enter an image URL to create a 3-up vertical sticker sheet that&apos;s print-ready</p>
         </div>
 
         <div className="space-y-6">
@@ -250,7 +250,7 @@ export default function StickerLayoutPage() {
                   </div>
                   <div className="flex items-start space-x-3">
                     <div className="bg-blue-100 text-blue-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-medium">5</div>
-                    <p>You'll receive URLs for both the input and output images</p>
+                    <p>You&apos;ll receive URLs for both the input and output images</p>
                   </div>
                 </div>
               </CardContent>

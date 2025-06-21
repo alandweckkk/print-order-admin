@@ -10,8 +10,7 @@ import {
   getAllAdminProfiles, 
   createAdminProfile, 
   deleteAdminProfile, 
-  saveAdminColumnDefaults,
-  getCurrentAdminDefaults 
+  saveAdminColumnDefaults
 } from "@/app/orders/actions/admin-profiles";
 
 interface AdminProfile {
@@ -39,7 +38,7 @@ export default function AdminProfilesPage() {
       setIsLoading(true);
       const result = await getAllAdminProfiles();
       if (result.success) {
-        setProfiles(result.data);
+        setProfiles(result.data || []);
       } else {
         console.error("Failed to load profiles:", result.error);
       }

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PopoverCutoffText } from "@/components/ui/popover-cutoff-text";
 import { TableImagePopover } from "@/components/TableImagePopover";
-import { TableEnvelopePreview } from "@/components/TableEnvelopePreview";
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -180,15 +180,7 @@ export default function OrdersPage() {
     });
   };
 
-  // Handle select all/deselect all
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      const allEventIds = filteredData.map(event => event.id);
-      setSelectedItems(new Set(allEventIds));
-    } else {
-      setSelectedItems(new Set());
-    }
-  };
+
 
   // Calculate total pages
   const totalPages = Math.ceil(totalEvents / eventsPerPage);
@@ -544,7 +536,7 @@ export default function OrdersPage() {
     e.dataTransfer.setData('text/html', columnName);
   };
 
-  const handleDragEnd = (e: React.DragEvent) => {
+  const handleDragEnd = () => {
     setDraggedColumn(null);
     setDragOverColumn(null);
   };
@@ -727,25 +719,25 @@ export default function OrdersPage() {
       case 'payment_source':
         return (
           <Badge className={getPaymentSourceColor(value as string)}>
-            <PopoverCutoffText text={value || '-'} />
+            <PopoverCutoffText text={String(value || '-')} />
           </Badge>
         );
       case 'pack_type':
         return (
           <Badge className="bg-purple-100 text-purple-800">
-            <PopoverCutoffText text={value || '-'} />
+            <PopoverCutoffText text={String(value || '-')} />
           </Badge>
         );
       case 'pmo_status':
         return (
           <Badge className="bg-orange-100 text-orange-800">
-            <PopoverCutoffText text={value || '-'} />
+            <PopoverCutoffText text={String(value || '-')} />
           </Badge>
         );
       case 'mr_status':
         return (
           <Badge className="bg-green-100 text-green-800">
-            <PopoverCutoffText text={value || '-'} />
+            <PopoverCutoffText text={String(value || '-')} />
           </Badge>
         );
 

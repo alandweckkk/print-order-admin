@@ -1,5 +1,15 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 
+interface ShippingAddress {
+  name?: string;
+  line1?: string;
+  line2?: string;
+  city?: string;
+  state?: string;
+  postal_code?: string;
+  country?: string;
+}
+
 interface TextElement {
   id: string;
   text: string;
@@ -14,12 +24,12 @@ interface TextElement {
 }
 
 interface TableEnvelopePreviewProps {
-  shippingAddress: any;
+  shippingAddress: ShippingAddress | string | null | undefined;
   className?: string;
 }
 
 // Helper function to format shipping address
-const formatShippingAddressMultiLine = (address: any): string[] => {
+const formatShippingAddressMultiLine = (address: ShippingAddress | string | null | undefined): string[] => {
   if (!address || typeof address !== 'object') {
     return ['No Address Available'];
   }
@@ -60,7 +70,7 @@ const formatShippingAddressMultiLine = (address: any): string[] => {
   return lines.length > 0 ? lines : ['No Address Available'];
 };
 
-function EnvelopeCanvas({ shippingAddress, width = 120, height = 80 }: { shippingAddress: any, width?: number, height?: number }) {
+function EnvelopeCanvas({ shippingAddress, width = 120, height = 80 }: { shippingAddress: ShippingAddress | string | null | undefined, width?: number, height?: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
   // Convert shipping address to formatted text
@@ -147,7 +157,7 @@ function EnvelopeCanvas({ shippingAddress, width = 120, height = 80 }: { shippin
 
       ctx.restore();
     });
-  }, [textElements, width, height]);
+  }, [textElements]);
 
   // Update canvas when elements change
   useEffect(() => {

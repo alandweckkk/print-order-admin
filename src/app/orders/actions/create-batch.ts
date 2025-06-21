@@ -7,7 +7,7 @@ interface CombinedOrderEvent {
   pmo_order_number?: string | null;
   pmo_email?: string | null;
   pmo_status?: string | null;
-  [key: string]: any;
+  [key: string]: string | number | null | undefined;
 }
 
 export interface Batch {

@@ -3,8 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Settings, Layout, FileImage, Mail, Tag, Users, Plus, Trash2, Check } from "lucide-react";
-import { getAllAdminProfiles, createAdminProfile, deleteAdminProfile, getCurrentAdminDefaults } from "@/app/orders/actions/admin-profiles";
+import { Settings, Layout, Mail, Tag, Users, Plus, Trash2, Check } from "lucide-react";
+import { getAllAdminProfiles, createAdminProfile, deleteAdminProfile } from "@/app/orders/actions/admin-profiles";
 import Notes from "@/components/Notes";
 
 interface MenuItem {
@@ -77,9 +77,9 @@ export default function Navigation() {
         const result = await getAllAdminProfiles();
         if (result.success) {
           // Mark the oldest profile as active by default
-          const profilesWithActive = result.data.map((profile, index) => ({
+          const profilesWithActive = (result.data || []).map((profile, index) => ({
             ...profile,
-            isActive: index === 0 && result.data.length > 0 // First profile (oldest) is active
+            isActive: index === 0 && (result.data || []).length > 0 // First profile (oldest) is active
           }));
           setAdminProfiles(profilesWithActive);
         } else {

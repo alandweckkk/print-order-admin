@@ -5,14 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
+
 import { Textarea } from "@/components/ui/textarea";
 import { 
   Type, 
   Download, 
-  Move, 
-  RotateCcw, 
-  Palette,
   AlignLeft,
   AlignCenter,
   AlignRight,
@@ -477,7 +474,7 @@ export default function EnvelopePage() {
                 <p>
                   {isAddingText 
                     ? "Click on the canvas to place your text"
-                    : "Click on existing text to select it, or use the 'Add Text' button to add new text"
+                    : "Click on existing text to select it, or use the &apos;Add Text&apos; button to add new text"
                   }
                 </p>
               </div>
@@ -519,7 +516,7 @@ export default function EnvelopePage() {
             <Card>
               <CardHeader>
                 <CardTitle>
-                  {selectedElementData ? `Edit: "${selectedElementData.text.substring(0, 20)}${selectedElementData.text.length > 20 ? '...' : ''}"` : 'Text Formatting'}
+                  {selectedElementData ? `Edit: &quot;${selectedElementData.text.substring(0, 20)}${selectedElementData.text.length > 20 ? '&hellip;' : ''}&quot;` : 'Text Formatting'}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -691,7 +688,7 @@ export default function EnvelopePage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2 text-sm text-gray-600">
-                <p>1. Enter text (use Enter for multiple lines) and click "Add Text to Canvas"</p>
+                <p>1. Enter text (use Enter for multiple lines) and click &quot;Add Text to Canvas&quot;</p>
                 <p>2. Click where you want to place the text</p>
                 <p>3. Select text to edit formatting or drag to move</p>
                 <p>4. Edit selected text content to add/remove line breaks</p>

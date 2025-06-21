@@ -1,7 +1,7 @@
 import { CombinedOrderEvent } from '@/app/orders/actions/pull-orders-from-supabase';
 
 // ============================================================================
-// SHIPPING ADDRESS TRANSFORMATIONS
+// TYPE DEFINITIONS
 // ============================================================================
 
 export interface ShippingAddress {
@@ -13,13 +13,49 @@ export interface ShippingAddress {
   postal_code?: string;
   country?: string;
   phone?: string;
-  [key: string]: any; // For any additional fields
+  [key: string]: string | number | boolean | null | undefined; // For any additional fields
 }
+
+export interface OrderItem {
+  name?: string;
+  description?: string;
+  quantity?: number;
+  price?: number;
+  image_url?: string;
+  [key: string]: string | number | boolean | null | undefined;
+}
+
+export interface MetadataObject {
+  [key: string]: string | number | boolean | null | undefined;
+}
+
+export interface StripePayload {
+  type?: string;
+  data?: {
+    object?: {
+      amount?: number;
+      currency?: string;
+      status?: string;
+      payment_method_types?: string[];
+    };
+  };
+  [key: string]: unknown;
+}
+
+export interface ModelRunData {
+  prompt?: string;
+  image_url?: string;
+  [key: string]: unknown;
+}
+
+// ============================================================================
+// SHIPPING ADDRESS TRANSFORMATIONS
+// ============================================================================
 
 /**
  * Formats a shipping address object into a human-readable string
  */
-export function formatShippingAddress(address: any): string {
+export function formatShippingAddress(address: ShippingAddress | string | null | undefined): string {
   if (!address || typeof address !== 'object') {
     return '-';
   }
@@ -65,7 +101,7 @@ export function formatShippingAddress(address: any): string {
 /**
  * Formats a shipping address for compact display (single line)
  */
-export function formatShippingAddressCompact(address: any): string {
+export function formatShippingAddressCompact(address: ShippingAddress | string | null | undefined): string {
   if (!address || typeof address !== 'object') {
     return '-';
   }
@@ -83,7 +119,7 @@ export function formatShippingAddressCompact(address: any): string {
 /**
  * Formats a shipping address for multi-line display
  */
-export function formatShippingAddressMultiLine(address: any): string[] {
+export function formatShippingAddressMultiLine(address: ShippingAddress | string | null | undefined): string[] {
   if (!address || typeof address !== 'object') {
     return ['-'];
   }
@@ -121,26 +157,17 @@ export function formatShippingAddressMultiLine(address: any): string[] {
 // ORDER ITEMS TRANSFORMATIONS
 // ============================================================================
 
-export interface OrderItem {
-  name?: string;
-  description?: string;
-  quantity?: number;
-  price?: number;
-  image_url?: string;
-  [key: string]: any;
-}
-
 /**
  * Formats order items for display
  */
-export function formatOrderItems(items: any): string {
+export function formatOrderItems(items: OrderItem[] | OrderItem | string | null | undefined): string {
   if (!items) return '-';
   
   if (typeof items === 'string') {
     try {
-      items = JSON.parse(items);
+      items = JSON.parse(items) as OrderItem[] | OrderItem;
     } catch {
-      return items;
+      return String(items);
     }
   }
 
@@ -154,7 +181,7 @@ export function formatOrderItems(items: any): string {
     return JSON.stringify(items).substring(0, 50) + '...';
   }
 
-  const itemStrings = items.map((item: any) => {
+  const itemStrings = items.map((item: OrderItem) => {
     const name = item.name || item.description || 'Item';
     const qty = item.quantity || 1;
     return `${qty}x ${name}`;
@@ -174,7 +201,7 @@ export function formatOrderItems(items: any): string {
 /**
  * Formats metadata objects for human-readable display
  */
-export function formatMetadata(metadata: any): string {
+export function formatMetadata(metadata: MetadataObject | string | null | undefined): string {
   if (!metadata || typeof metadata !== 'object') {
     return '-';
   }
@@ -226,7 +253,7 @@ export function formatMetadata(metadata: any): string {
 /**
  * Extracts key information from Stripe payload
  */
-export function formatStripePayload(payload: any): string {
+export function formatStripePayload(payload: StripePayload | string | null | undefined): string {
   if (!payload || typeof payload !== 'object') {
     return '-';
   }
@@ -329,7 +356,7 @@ export function getRowHeightClasses(heightType: 'compact' | 'standard' | 'expand
 export function transformCellContent(
   event: CombinedOrderEvent, 
   columnName: string, 
-  value: any
+  value: unknown
 ): {
   displayValue: string;
   isMultiLine?: boolean;
@@ -344,23 +371,23 @@ export function transformCellContent(
 
   switch (columnName) {
     case 'pmo_shipping_address':
-      const addressLines = formatShippingAddressMultiLine(value);
+      const addressLines = formatShippingAddressMultiLine(value as ShippingAddress);
       return {
-        displayValue: formatShippingAddressCompact(value),
+        displayValue: formatShippingAddressCompact(value as ShippingAddress),
         isMultiLine: addressLines.length > 1,
         lines: addressLines
       };
 
     case 'pmo_items':
       return {
-        displayValue: formatOrderItems(value),
+        displayValue: formatOrderItems(value as OrderItem[]),
         shouldTruncate: true,
         maxLength: 60
       };
 
     case 'payload':
       return {
-        displayValue: formatStripePayload(value),
+        displayValue: formatStripePayload(value as StripePayload),
         shouldTruncate: true,
         maxLength: 80
       };
@@ -368,23 +395,24 @@ export function transformCellContent(
     case 'pmo_metadata':
     case 'mr_metadata':
       return {
-        displayValue: formatMetadata(value),
+        displayValue: formatMetadata(value as MetadataObject),
         shouldTruncate: true,
         maxLength: 100
       };
 
     case 'mr_input_data':
     case 'mr_output_data':
-      if (typeof value === 'object') {
+      if (typeof value === 'object' && value !== null) {
+        const modelData = value as ModelRunData;
         // Try to extract meaningful info from model run data
-        if (value.prompt) {
+        if (modelData.prompt) {
           return {
-            displayValue: `Prompt: ${value.prompt}`,
+            displayValue: `Prompt: ${modelData.prompt}`,
             shouldTruncate: true,
             maxLength: 60
           };
         }
-        if (value.image_url) {
+        if (modelData.image_url) {
           return {
             displayValue: 'Image data',
             shouldTruncate: false
@@ -435,9 +463,9 @@ export function truncateText(text: string, maxLength: number): string {
 /**
  * Checks if a value represents empty/null data
  */
-export function isEmpty(value: any): boolean {
+export function isEmpty(value: unknown): boolean {
   if (value === null || value === undefined || value === '') return true;
-  if (typeof value === 'object' && Object.keys(value).length === 0) return true;
+  if (typeof value === 'object' && value !== null && Object.keys(value).length === 0) return true;
   if (Array.isArray(value) && value.length === 0) return true;
   return false;
 }
@@ -445,7 +473,7 @@ export function isEmpty(value: any): boolean {
 /**
  * Safe JSON parse with fallback
  */
-export function safeJsonParse(value: any): any {
+export function safeJsonParse(value: unknown): unknown {
   if (typeof value !== 'string') return value;
   
   try {

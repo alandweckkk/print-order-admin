@@ -17,7 +17,7 @@ export function PopoverCutoffText({
   const [copied, setCopied] = useState(false);
   const textRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
-  const timeoutRef = useRef<NodeJS.Timeout>();
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Truncate text if needed
   const displayText = text.length > maxLength 

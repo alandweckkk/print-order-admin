@@ -222,5 +222,5 @@ export async function getImageMetadata(inputBuffer: Buffer) {
  * Convert Buffer to ArrayBuffer (for serialization in server actions)
  */
 export function bufferToArrayBuffer(buffer: Buffer): ArrayBuffer {
-  return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+  return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
 } 

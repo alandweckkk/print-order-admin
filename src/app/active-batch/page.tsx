@@ -16,18 +16,16 @@ import {
   MoreHorizontal, 
   Grid3X3, 
   Maximize2, 
-  Printer, 
   Download, 
   ArrowLeft, 
   ChevronLeft, 
   ChevronRight, 
   X, 
-  Mail,
   Settings
 } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import JSZip from 'jszip';
-import { formatShippingAddressMultiLine } from '@/lib/data-transformations';
+import { formatShippingAddressMultiLine, ShippingAddress } from '@/lib/data-transformations';
 
 // Batch interface  
 interface Batch {
@@ -35,8 +33,29 @@ interface Batch {
   name: string;
   created_at: string;
   order_ids: number[];
-  order_data?: any[]; // Store actual order data (optional for backward compatibility)
+  order_data?: OrderData[]; // Store actual order data (optional for backward compatibility)
+  processed_images?: { [orderId: number]: string };
 }
+
+// Order data interface for batch storage
+interface OrderData {
+  id: number;
+  mr_id?: string;
+  order_number?: string;
+  pmo_order_number?: string;
+  pmo_email?: string;
+  user_id?: string;
+  original_output_image_url?: string;
+  mr_original_output_image_url?: string;
+  mr_output_image_url?: string;
+  output_image_url?: string;
+  pmo_status?: string;
+  shipping_address?: ShippingAddress;
+  pmo_shipping_address?: string;
+}
+
+// Shipping address interface
+
 
 // Order interface for typed state
 interface Order {
@@ -49,7 +68,7 @@ interface Order {
   envelopeUrl: string;
   status: string;
   isProcessed?: boolean; // Whether the sticker sheet is a processed blob URL
-  shippingAddress?: any; // Add shipping address data
+  shippingAddress?: ShippingAddress | string | null; // Add shipping address data
 }
 
 type ViewMode = 'horizontal' | 'gallery' | 'one-by-one';
@@ -281,7 +300,7 @@ interface TextElement {
 
 // Envelope Canvas Component
 interface EnvelopeCanvasProps {
-  shippingAddress: any;
+  shippingAddress: ShippingAddress | string | null | undefined;
   className?: string;
   width?: number;
   height?: number;
@@ -393,7 +412,7 @@ function EnvelopeCanvas({ shippingAddress, className = "", width = 350, height =
 
       ctx.restore();
     });
-  }, [textElements, width, height]);
+  }, [textElements]);
 
   // Update canvas when elements change
   useEffect(() => {
@@ -454,7 +473,7 @@ export default function ActiveBatchPage() {
     // Load actual order data from the batch
     if (batch.order_data && batch.order_data.length > 0) {
       // Convert order data to the format expected by OrderCard
-      const convertedOrders = batch.order_data.map((order: any, index: number) => {
+      const convertedOrders = batch.order_data.map((order: OrderData, index: number) => {
         // Use original image URL 
         const originalImageUrl = order.original_output_image_url || order.mr_original_output_image_url || order.mr_output_image_url || order.output_image_url || "/api/placeholder/400/500";
         const stickerSheetUrl = originalImageUrl;
@@ -488,9 +507,9 @@ export default function ActiveBatchPage() {
       // Load actual order data from the batch
       if (batch.order_data && batch.order_data.length > 0) {
         // Convert order data to the format expected by OrderCard
-        const convertedOrders = batch.order_data.map((order: any, index: number) => {
+        const convertedOrders = batch.order_data.map((order: OrderData, index: number) => {
           // Use processed blob URL if available, otherwise fallback to original image
-          const processedBlobUrl = (batch as any).processed_images?.[order.id];
+          const processedBlobUrl = batch.processed_images?.[order.id];
           const originalImageUrl = order.original_output_image_url || order.mr_output_image_url || order.output_image_url || "/api/placeholder/400/500";
           const stickerSheetUrl = processedBlobUrl || originalImageUrl;
           
@@ -522,7 +541,7 @@ export default function ActiveBatchPage() {
   // Load batches on component mount
   useEffect(() => {
     loadBatches();
-  }, []);
+  }, [loadBatches]);
 
   // Check if mobile on component mount
   useEffect(() => {
@@ -734,11 +753,7 @@ export default function ActiveBatchPage() {
     setCurrentOrderIndex(prev => Math.max(prev - 1, 0));
   }, []);
 
-  const markAsPrinted = (id: number) => {
-    setOrders(prev => prev.map(order => 
-      order.id === id ? { ...order, status: "Printed" } : order
-    ));
-  };
+
 
   // Touch gesture support for 1-by-1 view
   const { handleTouchStart, handleTouchEnd } = useTouchGesture(nextOrder, prevOrder);
@@ -978,7 +993,7 @@ export default function ActiveBatchPage() {
           {activeBatch && orders.length === 0 && (
             <div className="text-center py-16">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">No Orders in Batch</h2>
-              <p className="text-gray-500 mb-6">This batch appears to be empty or the order data couldn't be loaded.</p>
+              <p className="text-gray-500 mb-6">This batch appears to be empty or the order data couldn&apos;t be loaded.</p>
             </div>
           )}
         </div>

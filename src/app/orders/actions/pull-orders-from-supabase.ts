@@ -2,8 +2,54 @@
 
 import { createAdminClient } from '@/lib/supabase/admin';
 
+// Define proper types for complex data structures
+interface ShippingAddress {
+  name?: string;
+  line1?: string;
+  line2?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  postal_code?: string;
+}
+
+interface StripePayload {
+  data?: {
+    object?: {
+      id?: string;
+      payment_intent?: string;
+    };
+  };
+  payment_intent_id?: string;
+  [key: string]: unknown;
+}
+
+interface OrderItems {
+  [key: string]: unknown;
+}
+
+interface OrderMetadata {
+  [key: string]: unknown;
+}
+
+interface ModelRunInputData {
+  [key: string]: unknown;
+}
+
+interface ModelRunOutputData {
+  [key: string]: unknown;
+}
+
+interface ModelRunMetadata {
+  [key: string]: unknown;
+}
+
+interface ModelRunOutputImages {
+  [key: string]: unknown;
+}
+
 // Helper function to format shipping address JSON into readable string
-function formatShippingAddress(shippingAddress: any): string | null {
+function formatShippingAddress(shippingAddress: ShippingAddress | null | undefined): string | null {
   if (!shippingAddress || typeof shippingAddress !== 'object') {
     return null;
   }
@@ -14,7 +60,6 @@ function formatShippingAddress(shippingAddress: any): string | null {
     line2,
     city,
     state,
-    country,
     postal_code
   } = shippingAddress;
 
@@ -42,7 +87,7 @@ function formatShippingAddress(shippingAddress: any): string | null {
 
 export interface StripeCapturedEvent {
   id: number;
-  payload: any;
+  payload: StripePayload;
   transaction_id: string | null;
   amount: number | null;
   created_timestamp: number | null;
@@ -65,8 +110,8 @@ export interface CombinedOrderEvent extends StripeCapturedEvent {
   pmo_amount: number | null;
   pmo_currency: string | null;
   pmo_shipping_address: string | null;
-  pmo_items: any | null;
-  pmo_metadata: any | null;
+  pmo_items: OrderItems | null;
+  pmo_metadata: OrderMetadata | null;
   pmo_order_type: string | null;
   pmo_output_image_url: string | null;
   pmo_email: string | null;
@@ -83,22 +128,21 @@ export interface CombinedOrderEvent extends StripeCapturedEvent {
   mr_updated_at: string | null;
   mr_status: string | null;
   mr_model_name: string | null;
-  mr_input_data: any | null;
-  mr_output_data: any | null;
+  mr_input_data: ModelRunInputData | null;
+  mr_output_data: ModelRunOutputData | null;
   mr_error: string | null;
   mr_duration_ms: number | null;
   mr_cost: number | null;
-  mr_metadata: any | null;
+  mr_metadata: ModelRunMetadata | null;
   mr_prompt: string | null;
   mr_input_image_url: string | null;
   mr_output_image_url: string | null;
   mr_original_output_image_url: string | null;
-  mr_output_images: any | null;
+  mr_output_images: ModelRunOutputImages | null;
   mr_credits_used: number | null;
   mr_model_version: string | null;
   // Batch management fields
   batch_status: string | null;
-
 }
 
 export async function fetchStripeEventColumns(): Promise<string[]> {
@@ -281,8 +325,6 @@ export async function fetchTableColumns(): Promise<string[]> {
   }
 }
 
-
-
 export async function fetchPhysicalStripeEvents(page: number = 1, limit: number = 100): Promise<{ events: CombinedOrderEvent[], total: number }> {
   "use server";
   
@@ -335,7 +377,7 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
 
     // Extract unique payment intent IDs and model run IDs from current page
     const paymentIntentIds = stripeEvents
-      .map(event => event.payload?.data?.object?.id || event.payload?.payment_intent_id)
+      .map(event => (event.payload as StripePayload)?.data?.object?.id || (event.payload as StripePayload)?.payment_intent_id)
       .filter(Boolean);
     
     const modelRunIds = stripeEvents
@@ -378,8 +420,6 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
       // Continue anyway - we can still show stripe data without model runs data
     }
 
-
-
     console.log('=== DATA SUMMARY ===');
     console.log('Stripe events found:', stripeEvents?.length);
     console.log('Physical orders found:', physicalOrders?.length);
@@ -389,12 +429,12 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
     if (stripeEvents?.length > 0) {
       console.log('Sample stripe payloads (first 3):');
       stripeEvents.slice(0, 3).forEach((event, i) => {
-        const paymentIntentId = event.payload?.payment_intent_id || event.payload?.data?.object?.payment_intent;
+        const paymentIntentId = (event.payload as StripePayload)?.payment_intent_id || (event.payload as StripePayload)?.data?.object?.payment_intent;
         console.log(`  ${i + 1}: payment_intent_id =`, paymentIntentId);
       });
     }
 
-    if (physicalOrders?.length > 0) {
+    if (physicalOrders && physicalOrders.length > 0) {
       console.log('Sample physical order payment_intent_ids (first 3):');
       physicalOrders.slice(0, 3).forEach((order, i) => {
         console.log(`  ${i + 1}: payment_intent_id =`, order.payment_intent_id);
@@ -404,12 +444,12 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
     // Combine the data by matching payment_intent_id from stripe payload
     let joinMatches = 0;
     let modelRunMatches = 0;
-    const combinedData = stripeEvents.map((stripe: any) => {
+    const combinedData = stripeEvents.map((stripe: StripeCapturedEvent) => {
       // Extract payment_intent_id from stripe payload - the ID is nested in data.object.id
-      const paymentIntentId = stripe.payload?.data?.object?.id || stripe.payload?.payment_intent_id;
+      const paymentIntentId = (stripe.payload as StripePayload)?.data?.object?.id || (stripe.payload as StripePayload)?.payment_intent_id;
       
       // Find matching physical order (optional - not all stripe events have physical orders)
-      const matchingOrder = physicalOrders?.find((order: any) => 
+      const matchingOrder = physicalOrders?.find((order: { payment_intent_id: string }) => 
         order.payment_intent_id === paymentIntentId
       );
       
@@ -418,7 +458,7 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
       }
 
       // Find matching model run by model_run_id from stripe event
-      const matchingModelRun = modelRuns?.find((run: any) => 
+      const matchingModelRun = modelRuns?.find((run: { id: string }) => 
         run.id === stripe.model_run_id
       );
 
