@@ -66,6 +66,11 @@ export default function OrdersPage() {
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error'>('success');
 
+  // Add view details modal state
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedEventDetails, setSelectedEventDetails] = useState<CombinedOrderEvent | null>(null);
+  const [selectedEventIndex, setSelectedEventIndex] = useState<number>(-1);
+
   // Status options matching the Select action dropdown
   const statusOptions = [
     { value: 'no-status', label: 'No Status' },
@@ -638,6 +643,29 @@ export default function OrdersPage() {
   const handleHeaderWidthCancel = () => {
     setShowWidthPopover(null);
     setHeaderTempWidth('');
+  };
+
+  // View details modal handlers
+  const handleViewDetails = (event: CombinedOrderEvent, index: number) => {
+    setSelectedEventDetails(event);
+    setSelectedEventIndex(index);
+    setShowDetailsModal(true);
+  };
+
+  const navigateToNextRecord = () => {
+    if (selectedEventIndex < filteredData.length - 1) {
+      const newIndex = selectedEventIndex + 1;
+      setSelectedEventDetails(filteredData[newIndex]);
+      setSelectedEventIndex(newIndex);
+    }
+  };
+
+  const navigateToPreviousRecord = () => {
+    if (selectedEventIndex > 0) {
+      const newIndex = selectedEventIndex - 1;
+      setSelectedEventDetails(filteredData[newIndex]);
+      setSelectedEventIndex(newIndex);
+    }
   };
 
   // Batch status editing handlers
@@ -1329,10 +1357,7 @@ export default function OrdersPage() {
                           <Button 
                             variant="outline" 
                             size="sm"
-                            onClick={() => {
-                              // TODO: Implement view details functionality
-                              console.log('View details for event:', event.id);
-                            }}
+                            onClick={() => handleViewDetails(event, index)}
                           >
                             View Details
                           </Button>
@@ -1451,6 +1476,77 @@ export default function OrdersPage() {
                 {isCreatingBatch ? 'Creating...' : 'Create Batch'}
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* View Details Modal */}
+        <Dialog open={showDetailsModal} onOpenChange={setShowDetailsModal}>
+          <DialogContent className="max-w-[1200px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+              <DialogTitle className="text-xl font-semibold">
+                Order Details - ID: {selectedEventDetails?.id}
+              </DialogTitle>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={navigateToPreviousRecord}
+                  disabled={selectedEventIndex <= 0}
+                  className="h-8 w-8 p-0"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </Button>
+                <span className="text-sm text-gray-500 min-w-[80px] text-center">
+                  {selectedEventIndex + 1} / {filteredData.length}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={navigateToNextRecord}
+                  disabled={selectedEventIndex >= filteredData.length - 1}
+                  className="h-8 w-8 p-0"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </Button>
+              </div>
+            </DialogHeader>
+            
+            {selectedEventDetails && (
+              <div className="space-y-6">
+                {/* Image Section - Only Original Output Image */}
+                <div className="bg-gray-50 rounded-lg p-6">
+                  <h3 className="text-lg font-medium mb-4">Original Output Image</h3>
+                  <div className="flex justify-center">
+                    {selectedEventDetails.mr_original_output_image_url ? (
+                      <div className="text-center">
+                        <img
+                          src={selectedEventDetails.mr_original_output_image_url}
+                          alt="Original Output"
+                          className="rounded-lg border shadow-sm hover:shadow-md transition-shadow mx-auto"
+                          style={{ maxWidth: '600px', maxHeight: '600px', objectFit: 'contain' }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="text-center text-gray-500 py-8">
+                        <p>No original output image available</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Additional Content Area - Placeholder for future content */}
+                <div className="bg-blue-50 rounded-lg p-6 min-h-[200px]">
+                  <h3 className="text-lg font-medium text-blue-800 mb-4">Additional Information</h3>
+                  <div className="text-gray-600 text-center py-8">
+                    <p>Content area ready for additional information...</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
 
