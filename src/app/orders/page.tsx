@@ -677,19 +677,12 @@ export default function OrdersPage() {
         );
 
       case 'pmo_shipping_address':
-        // Shipping address with envelope preview
+        // Shipping address - show full text without truncation
         if (value) {
-          try {
-            // Try to parse as JSON if it's a JSON string
-            const addressData = typeof value === 'string' && value.startsWith('{') ? JSON.parse(value) : value;
-            return <TableEnvelopePreview shippingAddress={addressData} />;
-          } catch {
-            // If parsing fails, treat as plain text
-            const addressText = String(value);
-            return <PopoverCutoffText text={addressText} className="whitespace-nowrap" />;
-          }
+          const addressText = String(value);
+          return <div className="text-xs">{addressText}</div>;
         }
-        return <PopoverCutoffText text="-" className="whitespace-nowrap" />;
+        return <span className="text-gray-400">-</span>;
       case 'batch_status':
         // Status dropdown
         const currentStatus = value ? String(value) : 'no-status';
