@@ -23,7 +23,7 @@ export default function OrdersPage() {
   const [stripeColumns, setStripeColumns] = useState<string[]>([]);
   const [physicalMailColumns, setPhysicalMailColumns] = useState<string[]>([]);
   const [modelRunsColumns, setModelRunsColumns] = useState<string[]>([]);
-  const [batchColumns] = useState<string[]>(['status']);
+  const [batchColumns] = useState<string[]>(['status', 'notes']);
 
   const [visibleColumns, setVisibleColumns] = useState<ColumnConfig[]>([]);
   const [showColumnPopover, setShowColumnPopover] = useState(false);
@@ -55,8 +55,20 @@ export default function OrdersPage() {
   const [editingWidth, setEditingWidth] = useState<string | null>(null);
   const [tempWidth, setTempWidth] = useState<string>('');
 
+  // Add simple header click width editing
+  const [showWidthPopover, setShowWidthPopover] = useState<string | null>(null);
+  const [headerTempWidth, setHeaderTempWidth] = useState<string>('');
+
   // Add batch status editing state  
   const [editingStatus, setEditingStatus] = useState<number | null>(null); // Track which row status is being edited
+
+  // Add notes state for each row
+  const [rowNotes, setRowNotes] = useState<Record<number, string>>({});
+
+  // Add toast state
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
 
   // Status options matching the Select action dropdown
   const statusOptions = [
@@ -113,14 +125,23 @@ export default function OrdersPage() {
         setShowBatchModal(false);
         
         // Show success message
-        alert(`Batch "${result.batch.name}" created with ${result.batch.order_ids.length} orders!`);
+        setToastMessage(`Batch "${result.batch.name}" created with ${result.batch.order_ids.length} orders!`);
+        setToastType('success');
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3000);
       } else {
         console.error('Failed to create batch:', result.error);
-        alert(`Failed to create batch: ${result.error}`);
+        setToastMessage('Failed to create batch');
+        setToastType('error');
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3000);
       }
     } catch (error) {
       console.error('Error creating batch:', error);
-      alert('An error occurred while creating the batch');
+      setToastMessage('Error creating batch');
+      setToastType('error');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
     } finally {
       setIsCreatingBatch(false);
     }
@@ -215,6 +236,9 @@ export default function OrdersPage() {
     
     // Batch management columns - wider for readability
     if (columnName.startsWith('batch_')) {
+      if (columnName === 'batch_notes') {
+        return 200; // Wider for notes input
+      }
       return 120;
     }
     
@@ -402,16 +426,25 @@ export default function OrdersPage() {
           setEditingStatus(null);
         }
       }
+
+      // Cancel width popover when clicking outside
+      if (showWidthPopover !== null) {
+        const target = event.target as HTMLElement;
+        const isWidthPopover = target.closest('[data-width-popover]');
+        if (!isWidthPopover) {
+          setShowWidthPopover(null);
+        }
+      }
     };
 
-    if (showColumnPopover || editingStatus !== null) {
+    if (showColumnPopover || editingStatus !== null || showWidthPopover !== null) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showColumnPopover, editingStatus]);
+  }, [showColumnPopover, editingStatus, showWidthPopover]);
 
   const formatCurrency = (amount: number | null) => {
     if (!amount) return '-';
@@ -452,14 +485,23 @@ export default function OrdersPage() {
       
       if (result.success) {
         console.log(`✅ Saved column defaults for ${currentAdminName}:`, visibleColumns);
-        alert(`Column defaults saved successfully for ${currentAdminName}!`);
+        setToastMessage('Saved');
+        setToastType('success');
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 2000);
       } else {
         console.error('Failed to save column defaults:', result.error);
-        alert(`Failed to save defaults: ${result.error}`);
+        setToastMessage('Save failed');
+        setToastType('error');
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3000);
       }
     } catch (error) {
       console.error('Error saving column defaults:', error);
-      alert('An error occurred while saving defaults');
+      setToastMessage('Save error');
+      setToastType('error');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
     } finally {
       setIsSavingDefaults(false);
     }
@@ -595,6 +637,53 @@ export default function OrdersPage() {
     setTempWidth('');
   };
 
+  // Simple header click width editing handlers
+  const handleHeaderWidthClick = (columnName: string) => {
+    const currentColumn = visibleColumns.find(col => col.name === columnName);
+    if (currentColumn) {
+      setHeaderTempWidth(currentColumn.width.toString());
+      setShowWidthPopover(columnName);
+    }
+  };
+
+  const handleHeaderWidthSave = async () => {
+    if (!showWidthPopover) return;
+    
+    const newWidth = parseInt(headerTempWidth);
+    if (isNaN(newWidth) || newWidth < 50) {
+      setShowWidthPopover(null);
+      setHeaderTempWidth('');
+      return;
+    }
+
+    // Update the column width
+    const newVisibleColumns = visibleColumns.map(col => 
+      col.name === showWidthPopover 
+        ? { ...col, width: newWidth }
+        : col
+    );
+    
+    setVisibleColumns(newVisibleColumns);
+    setShowWidthPopover(null);
+    setHeaderTempWidth('');
+    
+    // Save to Supabase in the background
+    try {
+      await saveCurrentAdminDefaults(
+        newVisibleColumns,
+        `Column widths updated at ${new Date().toLocaleString()}`
+      );
+      console.log('✅ Column widths saved to Supabase:', newVisibleColumns);
+    } catch (error) {
+      console.error('❌ Failed to save column widths:', error);
+    }
+  };
+
+  const handleHeaderWidthCancel = () => {
+    setShowWidthPopover(null);
+    setHeaderTempWidth('');
+  };
+
   // Batch status editing handlers
   const handleStatusChange = (eventId: number, newStatus: string) => {
     // TODO: Save to Supabase later
@@ -728,6 +817,18 @@ export default function OrdersPage() {
                          </SelectContent>
            </Select>
          </div>
+        );
+
+      case 'batch_notes':
+        // Notes input field
+        return (
+          <input
+            type="text"
+            value={rowNotes[event.id] || ''}
+            onChange={(e) => setRowNotes(prev => ({ ...prev, [event.id]: e.target.value }))}
+            placeholder="Write notes..."
+            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+          />
         );
 
       case 'payload':
@@ -1407,10 +1508,63 @@ export default function OrdersPage() {
                                 d="M4 6h16M4 12h16M4 18h16" 
                               />
                             </svg>
-                            <PopoverCutoffText 
-                              text={formatColumnHeader(columnConfig.name)} 
-                              className="whitespace-nowrap"
-                            />
+                            <div className="relative">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleHeaderWidthClick(columnConfig.name);
+                                }}
+                                className="hover:bg-gray-100 px-1 py-0.5 rounded text-left"
+                                title={`Click to adjust width (${columnConfig.width}px)`}
+                              >
+                                <PopoverCutoffText 
+                                  text={formatColumnHeader(columnConfig.name)} 
+                                  className="whitespace-nowrap"
+                                />
+                              </button>
+                              
+                              {/* Width adjustment popover */}
+                              {showWidthPopover === columnConfig.name && (
+                                <div 
+                                  data-width-popover
+                                  className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-50 p-3 min-w-[200px]"
+                                >
+                                  <div className="text-xs font-medium text-gray-700 mb-2">
+                                    Adjust Width: {formatColumnHeader(columnConfig.name)}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="number"
+                                      value={headerTempWidth}
+                                      onChange={(e) => setHeaderTempWidth(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleHeaderWidthSave();
+                                        if (e.key === 'Escape') handleHeaderWidthCancel();
+                                      }}
+                                      className="w-20 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      min="50"
+                                      placeholder="Width"
+                                      autoFocus
+                                    />
+                                    <span className="text-xs text-gray-500">px</span>
+                                  </div>
+                                  <div className="flex gap-1 mt-2">
+                                    <button
+                                      onClick={handleHeaderWidthSave}
+                                      className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                                    >
+                                      Save
+                                    </button>
+                                    <button
+                                      onClick={handleHeaderWidthCancel}
+                                      className="px-2 py-1 text-xs bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </th>
                       ))}
@@ -1571,6 +1725,26 @@ export default function OrdersPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Toast Notification */}
+        {showToast && (
+          <div className={`fixed bottom-4 right-4 text-white px-4 py-2 rounded-md shadow-lg z-50 transition-all duration-300 ${
+            toastType === 'success' ? 'bg-green-600' : 'bg-red-600'
+          }`}>
+            <div className="flex items-center gap-2">
+              {toastType === 'success' ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              )}
+              {toastMessage}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
