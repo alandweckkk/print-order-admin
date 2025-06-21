@@ -89,8 +89,15 @@ export default function OrdersPage() {
     setIsCreatingBatch(true);
     
     try {
-      // Get the actual order data for selected items
-      const selectedOrderData = events.filter(event => selectedItems.has(event.id));
+      // Get only the specific fields needed for batch from selected items
+      const selectedOrderData = events
+        .filter(event => selectedItems.has(event.id))
+        .map(event => ({
+          id: event.id,
+          original_output_image_url: event.mr_original_output_image_url,
+          order_number: event.pmo_order_number,
+          shipping_address: event.pmo_shipping_address
+        }));
       
       // Create batch without image processing
       const result = await createBatch(selectedOrderData, batchName.trim());
@@ -124,6 +131,20 @@ export default function OrdersPage() {
 
   const handleCreateBatchClick = () => {
     if (selectedItems.size < 2) return; // Require at least 2 items
+    
+    // Auto-fill with current EST date and time
+    const now = new Date();
+    const estTime = now.toLocaleString('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).replace(/(\d{2})\/(\d{2})\/(\d{4}), (\d{2}):(\d{2})/, 'Batch_$3-$1-$2_$4-$5');
+    
+    setBatchName(estTime);
     setShowBatchModal(true);
   };
 

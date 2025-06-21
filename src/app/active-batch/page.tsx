@@ -41,6 +41,7 @@ interface Order {
   orderNumber: string;
   userEmail: string;
   stickerSheetUrl: string;
+  originalImageUrl?: string; // Store original image URL for comparison
   envelopeUrl: string;
   status: string;
   isProcessed?: boolean; // Whether the sticker sheet is a processed blob URL
@@ -65,11 +66,11 @@ function OrderCard({ order, onRemove, className = "", size = 'medium' }: OrderCa
   };
 
   const imageClasses = {
-    small: "h-32",
-    medium: "h-48",
-    large: "h-64 sm:h-48 md:h-64",
-    "horizontal-large": "h-96", // 50% taller for horizontal view  
-    "one-by-one-huge": "h-[484px]"   // 384px + 100px = 484px for one-by-one
+    small: "h-[328px]",         // 128px + 200px = 328px
+    medium: "h-[392px]",        // 192px + 200px = 392px
+    large: "h-[456px] sm:h-[392px] md:h-[456px]", // 256px + 200px = 456px, responsive
+    "horizontal-large": "h-[584px]", // 384px + 200px = 584px for horizontal view  
+    "one-by-one-huge": "h-[684px]"   // 484px + 200px = 684px for one-by-one
   };
 
   return (
@@ -77,18 +78,45 @@ function OrderCard({ order, onRemove, className = "", size = 'medium' }: OrderCa
       <CardContent className="p-4">
         {/* Sticker Sheet Preview */}
         <div className="mb-3">
-          <div className={`${imageClasses[size]} bg-gray-100 rounded-lg mb-2 flex items-center justify-center overflow-hidden ${size === 'one-by-one-huge' ? 'py-2.5' : ''}`}>
-            <img 
-              src={order.stickerSheetUrl} 
-              alt="Sticker Sheet Preview"
-              className={size === 'one-by-one-huge' ? 'h-full w-auto object-contain' : 'w-full h-full object-cover'}
-            />
+          <div className={`${imageClasses[size]} bg-gray-100 rounded-lg mb-2 overflow-hidden relative ${size === 'one-by-one-huge' ? 'py-2.5' : ''}`}>
+            {order.isProcessed && order.originalImageUrl ? (
+              // Show sticker sheet centered with original as small thumbnail in bottom-left
+              <>
+                {/* Main sticker sheet - centered */}
+                <div className="flex items-center justify-center h-full">
+                  <img 
+                    src={order.stickerSheetUrl} 
+                    alt="3-up Sticker Sheet"
+                    className={size === 'one-by-one-huge' ? 'h-full w-auto object-contain' : 'w-full h-full object-cover'}
+                  />
+                </div>
+                {/* Original image thumbnail - bottom-left corner */}
+                <div className="absolute bottom-0 left-0 w-[50px] h-[50px] border-2 border-white rounded-lg overflow-hidden shadow-lg">
+                  <img 
+                    src={order.originalImageUrl} 
+                    alt="Original Thumbnail"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              </>
+            ) : (
+              // Show single image (original or processed)
+              <div className="flex items-center justify-center h-full">
+                <img 
+                  src={order.stickerSheetUrl} 
+                  alt="Sticker Sheet Preview"
+                  className={size === 'one-by-one-huge' ? 'h-full w-auto object-contain' : 'w-full h-full object-cover'}
+                />
+              </div>
+            )}
           </div>
           <div className="flex items-center justify-between">
-            <p className="text-xs text-gray-500 font-medium">Sticker Sheet</p>
+            <p className="text-xs text-gray-500 font-medium">
+              {order.isProcessed ? 'Original | 3-up Layout' : 'Sticker Sheet'}
+            </p>
             {order.isProcessed && (
               <Badge className="bg-green-100 text-green-700 text-xs px-1 py-0">
-                3-up Layout
+                Processed
               </Badge>
             )}
           </div>
@@ -176,6 +204,10 @@ export default function ActiveBatchPage() {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [selectedBatchId, setSelectedBatchId] = useState<string>('');
   const [activeBatch, setActiveBatch] = useState<Batch | null>(null);
+  
+  // Sticker sheet processing state
+  const [isProcessingStickerSheets, setIsProcessingStickerSheets] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState({ current: 0, total: 0 });
 
   // Batch management functions
   const loadBatches = () => {
@@ -205,14 +237,16 @@ export default function ActiveBatchPage() {
       // Convert order data to the format expected by OrderCard
       const convertedOrders = batch.order_data.map((order: any, index: number) => {
         // Use original image URL 
-        const stickerSheetUrl = order.mr_original_output_image_url || order.mr_output_image_url || order.output_image_url || "/api/placeholder/400/500";
+        const originalImageUrl = order.original_output_image_url || order.mr_original_output_image_url || order.mr_output_image_url || order.output_image_url || "/api/placeholder/400/500";
+        const stickerSheetUrl = originalImageUrl;
         
         return {
           id: order.id,
           modelRunId: order.mr_id || `MR-${Date.now()}-${index}`,
-          orderNumber: order.pmo_order_number || `ORD-${order.id}`,
+          orderNumber: order.order_number || order.pmo_order_number || `ORD-${order.id}`,
           userEmail: order.pmo_email || order.user_id || `user${order.id}@example.com`,
           stickerSheetUrl: stickerSheetUrl,
+          originalImageUrl: originalImageUrl, // Store original for comparison view
           envelopeUrl: "/api/placeholder/300/200", // Default envelope
           status: order.pmo_status === "shipped" ? "Printed" : "Ready"
         };
@@ -237,14 +271,16 @@ export default function ActiveBatchPage() {
         const convertedOrders = batch.order_data.map((order: any, index: number) => {
           // Use processed blob URL if available, otherwise fallback to original image
           const processedBlobUrl = (batch as any).processed_images?.[order.id];
-          const stickerSheetUrl = processedBlobUrl || order.mr_output_image_url || order.output_image_url || "/api/placeholder/400/500";
+          const originalImageUrl = order.original_output_image_url || order.mr_output_image_url || order.output_image_url || "/api/placeholder/400/500";
+          const stickerSheetUrl = processedBlobUrl || originalImageUrl;
           
           return {
             id: order.id,
             modelRunId: order.mr_id || `MR-${Date.now()}-${index}`,
-            orderNumber: order.pmo_order_number || `ORD-${order.id}`,
+            orderNumber: order.order_number || order.pmo_order_number || `ORD-${order.id}`,
             userEmail: order.pmo_email || order.user_id || `user${order.id}@example.com`,
             stickerSheetUrl: stickerSheetUrl,
+            originalImageUrl: originalImageUrl, // Store original for comparison view
             envelopeUrl: "/api/placeholder/300/200", // Default envelope
             status: order.pmo_status === "shipped" ? "Printed" : "Ready",
             // Add processed status for display
@@ -298,6 +334,79 @@ export default function ActiveBatchPage() {
   const handleExportZip = () => {
     // TODO: Implement export ZIP functionality
     console.log('Exporting batch as ZIP...');
+  };
+
+  const handleCreateStickerSheets = async () => {
+    if (!activeBatch || !activeBatch.order_data) {
+      console.error('No active batch or order data found');
+      return;
+    }
+
+    setIsProcessingStickerSheets(true);
+    setProcessingProgress({ current: 0, total: activeBatch.order_data.length });
+
+    try {
+      const processedImages: { [orderId: number]: string } = {};
+      
+      // Process each image in the batch
+      for (let i = 0; i < activeBatch.order_data.length; i++) {
+        const order = activeBatch.order_data[i];
+        setProcessingProgress({ current: i + 1, total: activeBatch.order_data.length });
+        
+        if (order.original_output_image_url) {
+          try {
+            console.log(`Processing image ${i + 1}/${activeBatch.order_data.length}: ${order.original_output_image_url}`);
+            
+            const response = await fetch('/api/create-sticker-sheet', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ imageUrl: order.original_output_image_url }),
+            });
+
+            const result = await response.json();
+
+            if (result.success && result.outputImageUrl) {
+              processedImages[order.id] = result.outputImageUrl;
+              console.log(`✅ Processed order ${order.id}: ${result.outputImageUrl}`);
+            } else {
+              console.error(`❌ Failed to process order ${order.id}:`, result.error);
+            }
+          } catch (error) {
+            console.error(`❌ Error processing order ${order.id}:`, error);
+          }
+        }
+      }
+
+      // Update the batch with processed images
+      const updatedBatch = {
+        ...activeBatch,
+        processed_images: processedImages
+      };
+
+      // Update localStorage
+      const currentBatches = batches.map(batch => 
+        batch.batch_id === activeBatch.batch_id ? updatedBatch : batch
+      );
+      
+      localStorage.setItem('print_order_batches', JSON.stringify(currentBatches));
+      setBatches(currentBatches);
+      setActiveBatch(updatedBatch);
+
+      // Refresh the orders to show processed images
+      selectBatch(activeBatch.batch_id);
+
+      console.log(`✅ Successfully processed ${Object.keys(processedImages).length} sticker sheets`);
+      alert(`Successfully processed ${Object.keys(processedImages).length} sticker sheets!`);
+
+    } catch (error) {
+      console.error('❌ Error during sticker sheet processing:', error);
+      alert('An error occurred while processing sticker sheets');
+    } finally {
+      setIsProcessingStickerSheets(false);
+      setProcessingProgress({ current: 0, total: 0 });
+    }
   };
 
   const nextOrder = useCallback(() => {
@@ -462,10 +571,21 @@ export default function ActiveBatchPage() {
             {/* Centered Green Button */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <Button 
-                className="bg-green-500 hover:bg-green-600 text-white pointer-events-auto"
-                style={{ width: '180px', height: '50px' }}
+                onClick={handleCreateStickerSheets}
+                disabled={isProcessingStickerSheets || !activeBatch?.order_data?.length}
+                className="bg-green-500 hover:bg-green-600 text-white pointer-events-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ width: '200px', height: '50px' }}
               >
-                Create Sticker Sheets
+                {isProcessingStickerSheets ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span className="text-sm">
+                      Processing {processingProgress.current}/{processingProgress.total}
+                    </span>
+                  </div>
+                ) : (
+                  'Create Sticker Sheets'
+                )}
               </Button>
             </div>
           </div>
