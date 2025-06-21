@@ -51,10 +51,6 @@ export default function OrdersPage() {
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
 
-  // Add column width editing state
-  const [editingWidth, setEditingWidth] = useState<string | null>(null);
-  const [tempWidth, setTempWidth] = useState<string>('');
-
   // Add simple header click width editing
   const [showWidthPopover, setShowWidthPopover] = useState<string | null>(null);
   const [headerTempWidth, setHeaderTempWidth] = useState<string>('');
@@ -595,47 +591,7 @@ export default function OrdersPage() {
     }
   };
 
-  // Column width editing handlers
-  const handleWidthEdit = (columnName: string, currentWidth: number) => {
-    setEditingWidth(columnName);
-    setTempWidth(currentWidth.toString());
-  };
 
-  const handleWidthSave = async (columnName: string) => {
-    const newWidth = parseInt(tempWidth);
-    if (isNaN(newWidth) || newWidth < 50) {
-      setEditingWidth(null);
-      setTempWidth('');
-      return;
-    }
-
-    // Update the column width
-    const newVisibleColumns = visibleColumns.map(col => 
-      col.name === columnName 
-        ? { ...col, width: newWidth }
-        : col
-    );
-    
-    setVisibleColumns(newVisibleColumns);
-    setEditingWidth(null);
-    setTempWidth('');
-    
-    // Save to Supabase in the background
-    try {
-      await saveCurrentAdminDefaults(
-        newVisibleColumns,
-        `Column widths updated at ${new Date().toLocaleString()}`
-      );
-      console.log('✅ Column widths saved to Supabase:', newVisibleColumns);
-    } catch (error) {
-      console.error('❌ Failed to save column widths:', error);
-    }
-  };
-
-  const handleWidthCancel = () => {
-    setEditingWidth(null);
-    setTempWidth('');
-  };
 
   // Simple header click width editing handlers
   const handleHeaderWidthClick = (columnName: string) => {
@@ -927,7 +883,7 @@ export default function OrdersPage() {
                 <div 
                   ref={popoverRef}
                   className="absolute top-full left-0 mt-2 bg-white border border-gray-200 rounded-md shadow-lg z-10 p-6 overflow-hidden"
-                  style={{ width: '1900px', minHeight: '900px' }}
+                  style={{ width: '1200px', minHeight: '900px' }}
                 >
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-lg font-medium text-gray-900">Show/Hide Columns</h3>
@@ -1136,235 +1092,7 @@ export default function OrdersPage() {
 
 
 
-                    {/* 5th Column - Selected Columns Summary */}
-                    <div className="relative flex-shrink-0">
-                      <div 
-                        className="bg-gradient-to-br from-gray-50 to-slate-50 rounded-lg p-6 border border-gray-200 shadow-sm"
-                        style={{ width: '320px' }}
-                      >
-                        <div className="flex items-center gap-3 mb-4">
-                          <div className="flex items-center justify-center w-8 h-8 bg-gray-100 rounded-full">
-                            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                            </svg>
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="text-base font-semibold text-gray-700">Selected Columns Summary</h4>
-                            <p className="text-xs text-gray-600 mt-0.5">Currently Visible Columns</p>
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-3">
-                          {/* Stripe Captured Events - Selected */}
-                          {(() => {
-                            const selectedStripeColumns = visibleColumns.filter(col => stripeColumns.includes(col.name));
-                            return selectedStripeColumns.length > 0 && (
-                              <div>
-                                <h5 className="text-xs font-medium text-blue-600 mb-2">Stripe Captured Events</h5>
-                                <div className="space-y-1 pl-2">
-                                  {selectedStripeColumns.map(columnConfig => (
-                                    <div key={columnConfig.name} className="flex items-center gap-2">
-                                      <span className="w-1 h-1 bg-blue-500 rounded-full flex-shrink-0"></span>
-                                      <span className="text-blue-600 font-mono text-xs flex-1">{columnConfig.name}</span>
-                                      <span className="text-blue-600 font-mono text-xs">
-                                        (
-                                        {editingWidth === columnConfig.name ? (
-                                          <input
-                                            type="number"
-                                            value={tempWidth}
-                                            onChange={(e) => setTempWidth(e.target.value)}
-                                            onBlur={() => handleWidthSave(columnConfig.name)}
-                                            onKeyDown={(e) => {
-                                              if (e.key === 'Enter') handleWidthSave(columnConfig.name);
-                                              if (e.key === 'Escape') handleWidthCancel();
-                                            }}
-                                            className="w-12 px-1 py-0 text-xs bg-white border border-blue-300 rounded"
-                                            min="50"
-                                            autoFocus
-                                          />
-                                        ) : (
-                                          <button
-                                            onClick={() => handleWidthEdit(columnConfig.name, columnConfig.width)}
-                                            className="hover:bg-blue-100 px-1 rounded"
-                                            title="Click to edit width"
-                                          >
-                                            {columnConfig.width}
-                                          </button>
-                                        )}
-                                        px)
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })()}
 
-                          {/* Physical Mail Orders - Selected */}
-                          {(() => {
-                            const selectedPmoColumns = visibleColumns.filter(col => col.name.startsWith('pmo_'));
-                            return selectedPmoColumns.length > 0 && (
-                              <div>
-                                <h5 className="text-xs font-medium text-purple-600 mb-2">Physical Mail Orders</h5>
-                                <div className="space-y-1 pl-2">
-                                  {selectedPmoColumns.map(columnConfig => (
-                                    <div key={columnConfig.name} className="flex items-center gap-2">
-                                      <span className="w-1 h-1 bg-purple-500 rounded-full flex-shrink-0"></span>
-                                      <span className="text-purple-600 font-mono text-xs flex-1">{columnConfig.name.substring(4)}</span>
-                                      <span className="text-purple-600 font-mono text-xs">
-                                        (
-                                        {editingWidth === columnConfig.name ? (
-                                          <input
-                                            type="number"
-                                            value={tempWidth}
-                                            onChange={(e) => setTempWidth(e.target.value)}
-                                            onBlur={() => handleWidthSave(columnConfig.name)}
-                                            onKeyDown={(e) => {
-                                              if (e.key === 'Enter') handleWidthSave(columnConfig.name);
-                                              if (e.key === 'Escape') handleWidthCancel();
-                                            }}
-                                            className="w-12 px-1 py-0 text-xs bg-white border border-purple-300 rounded"
-                                            min="50"
-                                            autoFocus
-                                          />
-                                        ) : (
-                                          <button
-                                            onClick={() => handleWidthEdit(columnConfig.name, columnConfig.width)}
-                                            className="hover:bg-purple-100 px-1 rounded"
-                                            title="Click to edit width"
-                                          >
-                                            {columnConfig.width}
-                                          </button>
-                                        )}
-                                        px)
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })()}
-
-                          {/* Model Runs - Selected */}
-                          {(() => {
-                            const selectedMrColumns = visibleColumns.filter(col => col.name.startsWith('mr_'));
-                            return selectedMrColumns.length > 0 && (
-                              <div>
-                                <h5 className="text-xs font-medium text-green-600 mb-2">Model Runs</h5>
-                                <div className="space-y-1 pl-2">
-                                  {selectedMrColumns.map(columnConfig => (
-                                    <div key={columnConfig.name} className="flex items-center gap-2">
-                                      <span className="w-1 h-1 bg-green-500 rounded-full flex-shrink-0"></span>
-                                      <span className="text-green-600 font-mono text-xs flex-1">{columnConfig.name.substring(3)}</span>
-                                      <span className="text-green-600 font-mono text-xs">
-                                        (
-                                        {editingWidth === columnConfig.name ? (
-                                          <input
-                                            type="number"
-                                            value={tempWidth}
-                                            onChange={(e) => setTempWidth(e.target.value)}
-                                            onBlur={() => handleWidthSave(columnConfig.name)}
-                                            onKeyDown={(e) => {
-                                              if (e.key === 'Enter') handleWidthSave(columnConfig.name);
-                                              if (e.key === 'Escape') handleWidthCancel();
-                                            }}
-                                            className="w-12 px-1 py-0 text-xs bg-white border border-green-300 rounded"
-                                            min="50"
-                                            autoFocus
-                                          />
-                                        ) : (
-                                          <button
-                                            onClick={() => handleWidthEdit(columnConfig.name, columnConfig.width)}
-                                            className="hover:bg-green-100 px-1 rounded"
-                                            title="Click to edit width"
-                                          >
-                                            {columnConfig.width}
-                                          </button>
-                                        )}
-                                        px)
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })()}
-
-                          {/* Batch Management - Selected */}
-                          {(() => {
-                            const selectedBatchColumns = visibleColumns.filter(col => col.name.startsWith('batch_'));
-                            return selectedBatchColumns.length > 0 && (
-                              <div>
-                                <h5 className="text-xs font-medium text-orange-600 mb-2">Batch Management</h5>
-                                <div className="space-y-1 pl-2">
-                                  {selectedBatchColumns.map(columnConfig => (
-                                    <div key={columnConfig.name} className="flex items-center gap-2">
-                                      <span className="w-1 h-1 bg-orange-500 rounded-full flex-shrink-0"></span>
-                                      <span className="text-orange-600 font-mono text-xs flex-1">{columnConfig.name.substring(6)}</span>
-                                      <span className="text-orange-600 font-mono text-xs">
-                                        (
-                                        {editingWidth === columnConfig.name ? (
-                                          <input
-                                            type="number"
-                                            value={tempWidth}
-                                            onChange={(e) => setTempWidth(e.target.value)}
-                                            onBlur={() => handleWidthSave(columnConfig.name)}
-                                            onKeyDown={(e) => {
-                                              if (e.key === 'Enter') handleWidthSave(columnConfig.name);
-                                              if (e.key === 'Escape') handleWidthCancel();
-                                            }}
-                                            className="w-12 px-1 py-0 text-xs bg-white border border-orange-300 rounded"
-                                            min="50"
-                                            autoFocus
-                                          />
-                                        ) : (
-                                          <button
-                                            onClick={() => handleWidthEdit(columnConfig.name, columnConfig.width)}
-                                            className="hover:bg-orange-100 px-1 rounded"
-                                            title="Click to edit width"
-                                          >
-                                            {columnConfig.width}
-                                          </button>
-                                        )}
-                                        px)
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })()}
-
-                          {/* Empty state */}
-                          {(() => {
-                            const totalSelected = visibleColumns.filter(col => 
-                              stripeColumns.includes(col.name) || 
-                              col.name.startsWith('pmo_') || 
-                              col.name.startsWith('mr_') ||
-                              col.name.startsWith('batch_')
-                            ).length;
-                            return totalSelected === 0 && (
-                              <div className="text-center py-8">
-                                <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                                </svg>
-                                <p className="text-xs text-gray-500">No columns selected from<br/>the four sections</p>
-                              </div>
-                            );
-                          })()}
-                        </div>
-
-                        {/* Info Box */}
-                        <div className="mt-4 p-3 bg-gray-100/50 rounded-md border border-gray-200">
-                          <p className="text-xs text-gray-600 leading-relaxed mb-2">
-                            <span className="font-semibold">Summary:</span> Currently visible columns from Stripe, Physical Mail Orders, Model Runs, and Batch Management sections.
-                          </p>
-                          <p className="text-xs text-green-600 leading-relaxed">
-                            <span className="font-semibold">💾 Admin Defaults:</span> Column visibility loaded from {currentAdminName}'s profile. Use the green "Save Column Defaults" button in the header to persist changes.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 </div>
               )}
