@@ -10,7 +10,7 @@ interface CombinedOrderEvent {
   [key: string]: any;
 }
 
-interface Batch {
+export interface Batch {
   batch_id: string;
   name: string;
   created_at: string;

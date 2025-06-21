@@ -12,16 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 
 import { fetchPhysicalStripeEvents, fetchStripeEventColumns, fetchPhysicalMailOrderColumns, fetchModelRunsColumns, CombinedOrderEvent } from './actions/pull-orders-from-supabase';
 import { getCurrentAdminDefaults, saveCurrentAdminDefaults, ColumnConfig } from './actions/admin-profiles';
-import { createBatch } from './actions/create-batch';
-
-// Add batch interfaces
-interface Batch {
-  batch_id: string;
-  name: string;
-  created_at: string;
-  order_ids: number[];
-  order_data: CombinedOrderEvent[]; // Store actual order data
-}
+import { createBatch, Batch } from './actions/create-batch';
 
 export default function OrdersPage() {
   const [events, setEvents] = useState<CombinedOrderEvent[]>([]);
@@ -542,7 +533,7 @@ export default function OrdersPage() {
       
       // If no valid image URL found, render as text
       const textValue = Array.isArray(value) ? JSON.stringify(value) : String(value);
-      return <PopoverCutoffText text={textValue} className="font-mono text-[8px]" />;
+      return <PopoverCutoffText text={textValue} className="font-mono" />;
     }
     
     switch (columnName) {
@@ -559,10 +550,10 @@ export default function OrdersPage() {
         return <PopoverCutoffText text={formatted} className="font-medium whitespace-nowrap" />;
       case 'mr_duration_ms':
         const duration = value ? `${value}ms` : '-';
-        return <PopoverCutoffText text={duration} className="whitespace-nowrap text-[8px]" />;
+        return <PopoverCutoffText text={duration} className="whitespace-nowrap" />;
       case 'mr_credits_used':
         const credits = value ? String(value) : '-';
-        return <PopoverCutoffText text={credits} className="whitespace-nowrap text-[8px]" />;
+        return <PopoverCutoffText text={credits} className="whitespace-nowrap" />;
       case 'payment_source':
         return (
           <Badge className={getPaymentSourceColor(value as string)}>
@@ -588,8 +579,11 @@ export default function OrdersPage() {
           </Badge>
         );
 
-      case 'payload':
       case 'pmo_shipping_address':
+        // Shipping address is now formatted as a readable string
+        const addressText = value ? String(value) : '-';
+        return <PopoverCutoffText text={addressText} className="whitespace-nowrap" />;
+      case 'payload':
       case 'pmo_items':
       case 'pmo_metadata':
       case 'mr_input_data':
@@ -597,9 +591,9 @@ export default function OrdersPage() {
       case 'mr_metadata':
       case 'mr_output_images':
         const payloadStr = value ? JSON.stringify(value) : '-';
-        return <PopoverCutoffText text={payloadStr} className="font-mono whitespace-nowrap text-[8px]" />;
+        return <PopoverCutoffText text={payloadStr} className="font-mono whitespace-nowrap" />;
       case 'created_timestamp':
-        if (!value) return <PopoverCutoffText text="-" className="whitespace-nowrap text-[8px]" />;
+        if (!value) return <PopoverCutoffText text="-" className="whitespace-nowrap" />;
         const timestamp = typeof value === 'number' ? value * 1000 : new Date(value as string).getTime();
         const formattedTimestamp = new Date(timestamp).toLocaleDateString('en-US', {
           year: 'numeric',
@@ -609,10 +603,10 @@ export default function OrdersPage() {
           minute: '2-digit',
           hour12: true
         });
-        return <PopoverCutoffText text={formattedTimestamp} className="whitespace-nowrap text-[8px]" />;
+        return <PopoverCutoffText text={formattedTimestamp} className="whitespace-nowrap" />;
       case 'created_timestamp_est':
         // Remove year from created_timestamp_est display
-        if (!value) return <PopoverCutoffText text="-" className="whitespace-nowrap text-[8px]" />;
+        if (!value) return <PopoverCutoffText text="-" className="whitespace-nowrap" />;
         const estDate = new Date(value as string);
         const estFormatted = estDate.toLocaleDateString('en-US', {
           month: 'short',
@@ -620,7 +614,7 @@ export default function OrdersPage() {
           hour: '2-digit',
           minute: '2-digit'
         });
-        return <PopoverCutoffText text={estFormatted} className="whitespace-nowrap text-[8px]" />;
+        return <PopoverCutoffText text={estFormatted} className="whitespace-nowrap" />;
       case 'pmo_shipped_at':
       case 'pmo_delivered_at':
       case 'pmo_created_at':
@@ -644,18 +638,23 @@ export default function OrdersPage() {
       case 'mr_prompt':
       case 'mr_error':
         const idText = value ? String(value) : '-';
-        return <PopoverCutoffText text={idText} className="font-mono whitespace-nowrap text-[8px]" />;
+        return <PopoverCutoffText text={idText} className="font-mono whitespace-nowrap" />;
       case 'id':
         const idValue = value ? String(value) : '-';
-        return <PopoverCutoffText text={idValue} className="font-mono whitespace-nowrap text-[8px]" />;
+        return <PopoverCutoffText text={idValue} className="font-mono whitespace-nowrap" />;
       default:
         const defaultText = value ? String(value) : '-';
-        return <PopoverCutoffText text={defaultText} className="whitespace-nowrap text-[8px]" />;
+        return <PopoverCutoffText text={defaultText} className="whitespace-nowrap" />;
     }
   };
 
   return (
     <div className="p-8">
+      <style>{`
+        .orders-table td {
+          font-size: 12px;
+        }
+      `}</style>
       <div className="max-w-[3000px] mx-auto">
         <div className="mb-8">
         </div>
@@ -1215,7 +1214,7 @@ export default function OrdersPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
+                <table className="w-full border-collapse orders-table">
                   <thead>
                     <tr className="border-b">
                       <th className="w-12 p-3 text-left">
@@ -1263,7 +1262,7 @@ export default function OrdersPage() {
                             </svg>
                             <PopoverCutoffText 
                               text={formatColumnHeader(columnConfig.name)} 
-                              className="whitespace-nowrap text-[8px]"
+                              className="whitespace-nowrap"
                             />
                           </div>
                         </th>

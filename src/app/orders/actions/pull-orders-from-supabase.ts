@@ -2,6 +2,44 @@
 
 import { createAdminClient } from '@/lib/supabase/admin';
 
+// Helper function to format shipping address JSON into readable string
+function formatShippingAddress(shippingAddress: any): string | null {
+  if (!shippingAddress || typeof shippingAddress !== 'object') {
+    return null;
+  }
+
+  const {
+    name,
+    line1,
+    line2,
+    city,
+    state,
+    country,
+    postal_code
+  } = shippingAddress;
+
+  if (!name && !line1 && !city) {
+    return null; // Not enough data to format
+  }
+
+  const parts = [];
+  
+  if (name) parts.push(name);
+  if (line1) parts.push(line1);
+  if (line2) parts.push(line2);
+  if (city) {
+    const cityStateParts = [city];
+    if (state) cityStateParts.push(state);
+    if (postal_code) cityStateParts.push(postal_code);
+    parts.push(cityStateParts.join(', '));
+  } else {
+    if (state) parts.push(state);
+    if (postal_code) parts.push(postal_code);
+  }
+
+  return parts.filter(Boolean).join(', ');
+}
+
 export interface StripeCapturedEvent {
   id: number;
   payload: any;
@@ -26,7 +64,7 @@ export interface CombinedOrderEvent extends StripeCapturedEvent {
   pmo_status: string | null;
   pmo_amount: number | null;
   pmo_currency: string | null;
-  pmo_shipping_address: any | null;
+  pmo_shipping_address: string | null;
   pmo_items: any | null;
   pmo_metadata: any | null;
   pmo_order_type: string | null;
@@ -396,7 +434,7 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
         pmo_status: matchingOrder?.status || null,
         pmo_amount: matchingOrder?.amount || null,
         pmo_currency: matchingOrder?.currency || null,
-        pmo_shipping_address: matchingOrder?.shipping_address || null,
+        pmo_shipping_address: formatShippingAddress(matchingOrder?.shipping_address) || null,
         pmo_items: matchingOrder?.items || null,
         pmo_metadata: matchingOrder?.metadata || null,
         pmo_order_type: matchingOrder?.order_type || null,
