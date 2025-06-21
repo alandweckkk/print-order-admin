@@ -2,11 +2,11 @@
 
 interface CombinedOrderEvent {
   id: number;
-  mr_original_output_image_url?: string;
-  mr_output_image_url?: string;
-  pmo_order_number?: string;
-  pmo_email?: string;
-  pmo_status?: string;
+  mr_original_output_image_url?: string | null;
+  mr_output_image_url?: string | null;
+  pmo_order_number?: string | null;
+  pmo_email?: string | null;
+  pmo_status?: string | null;
   [key: string]: any;
 }
 

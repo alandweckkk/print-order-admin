@@ -96,6 +96,9 @@ export interface CombinedOrderEvent extends StripeCapturedEvent {
   mr_output_images: any | null;
   mr_credits_used: number | null;
   mr_model_version: string | null;
+  // Batch management fields
+  batch_status: string | null;
+  batch_notes: string | null;
 
 }
 
@@ -466,6 +469,9 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
         mr_output_images: matchingModelRun?.output_images || null,
         mr_credits_used: matchingModelRun?.credits_used || null,
         mr_model_version: matchingModelRun?.model_version || null,
+        // Batch management fields - initialized as null, managed client-side for now
+        batch_status: null,
+        batch_notes: null,
       };
     });
 

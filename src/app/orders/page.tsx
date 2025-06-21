@@ -22,7 +22,7 @@ export default function OrdersPage() {
   const [stripeColumns, setStripeColumns] = useState<string[]>([]);
   const [physicalMailColumns, setPhysicalMailColumns] = useState<string[]>([]);
   const [modelRunsColumns, setModelRunsColumns] = useState<string[]>([]);
-  const [batchColumns] = useState<string[]>(['notes', 'address_approved', 'artwork_approved', 'no_red_flags', 'has_other_orders']);
+  const [batchColumns] = useState<string[]>(['status', 'notes']);
 
   const [visibleColumns, setVisibleColumns] = useState<ColumnConfig[]>([]);
   const [showColumnPopover, setShowColumnPopover] = useState(false);
@@ -53,6 +53,23 @@ export default function OrdersPage() {
   // Add column width editing state
   const [editingWidth, setEditingWidth] = useState<string | null>(null);
   const [tempWidth, setTempWidth] = useState<string>('');
+
+  // Add batch notes editing state
+  const [editingNotes, setEditingNotes] = useState<number | null>(null); // Track which row is being edited
+  const [tempNotes, setTempNotes] = useState<string>(''); // Temporary notes value while editing
+
+  // Add batch status editing state  
+  const [editingStatus, setEditingStatus] = useState<number | null>(null); // Track which row status is being edited
+
+  // Status options matching the Select action dropdown
+  const statusOptions = [
+    { value: 'no-status', label: 'No Status' },
+    { value: 'approved-batchable', label: 'Approved Batchable' },
+    { value: 'contact-user', label: 'Contact User' },
+    { value: 'alan-review', label: 'Alan Review' },
+    { value: 'question', label: 'Question' },
+    { value: 'hide', label: 'Hide' }
+  ];
 
   // Batch management functions
   const getBatches = (): Batch[] => {
@@ -270,7 +287,20 @@ export default function OrdersPage() {
           console.log('⚠️ No admin defaults found, using fallback columns:', defaultColumnConfigs);
         }
         
-        setVisibleColumns(defaultColumnConfigs);
+        // Remove the unwanted batch columns that were deleted
+        const unwantedBatchColumns = ['batch_address_approved', 'batch_artwork_approved', 'batch_no_red_flags', 'batch_has_other_orders'];
+        const cleanedColumnConfigs = defaultColumnConfigs.filter(col => !unwantedBatchColumns.includes(col.name));
+        
+        setVisibleColumns(cleanedColumnConfigs);
+        
+        // If we removed any columns, save the cleaned up defaults
+        if (cleanedColumnConfigs.length !== defaultColumnConfigs.length) {
+          console.log('🧹 Cleaning up removed batch columns from admin defaults');
+          saveCurrentAdminDefaults(
+            cleanedColumnConfigs,
+            `Cleaned up removed batch columns at ${new Date().toLocaleString()}`
+          );
+        }
       } catch (error) {
         console.error('Error loading columns:', error);
         // Fallback to hardcoded defaults on error
@@ -298,6 +328,29 @@ export default function OrdersPage() {
     loadData();
   }, []);
 
+  // Clean up any unwanted batch columns from visible columns
+  useEffect(() => {
+    const unwantedBatchColumns = ['batch_address_approved', 'batch_artwork_approved', 'batch_no_red_flags', 'batch_has_other_orders'];
+    
+    setVisibleColumns(prev => {
+      const filtered = prev.filter(col => !unwantedBatchColumns.includes(col.name));
+      
+      // If we filtered out columns, log it
+      if (filtered.length !== prev.length) {
+        console.log('🧹 Removed unwanted batch columns from visible columns');
+        // Auto-save the cleaned up state
+        setTimeout(() => {
+          saveCurrentAdminDefaults(
+            filtered,
+            `Removed unwanted batch columns at ${new Date().toLocaleString()}`
+          );
+        }, 1000);
+      }
+      
+      return filtered;
+    });
+  }, []);
+
   // Separate effect for loading page data
   useEffect(() => {
     const loadPageData = async () => {
@@ -322,16 +375,34 @@ export default function OrdersPage() {
       if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
         setShowColumnPopover(false);
       }
+      
+      // Cancel notes editing when clicking outside (unless clicking on another notes field)
+      if (editingNotes !== null) {
+        const target = event.target as HTMLElement;
+        const isNotesField = target.closest('[data-notes-field]') || target.tagName === 'TEXTAREA';
+        if (!isNotesField) {
+          handleNotesCancel();
+        }
+      }
+
+      // Cancel status editing when clicking outside
+      if (editingStatus !== null) {
+        const target = event.target as HTMLElement;
+        const isStatusField = target.closest('[data-status-field]') || target.closest('[role="combobox"]') || target.closest('[role="listbox"]');
+        if (!isStatusField) {
+          setEditingStatus(null);
+        }
+      }
     };
 
-    if (showColumnPopover) {
+    if (showColumnPopover || editingNotes !== null || editingStatus !== null) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showColumnPopover]);
+  }, [showColumnPopover, editingNotes, editingStatus]);
 
   const formatCurrency = (amount: number | null) => {
     if (!amount) return '-';
@@ -386,12 +457,14 @@ export default function OrdersPage() {
   };
 
   const formatColumnHeader = (columnName: string) => {
-    // Remove pmo_ or mr_ prefix for display
+    // Remove pmo_, mr_, or batch_ prefix for display
     let displayName = columnName;
     if (columnName.startsWith('pmo_')) {
       displayName = columnName.substring(4);
     } else if (columnName.startsWith('mr_')) {
       displayName = columnName.substring(3);
+    } else if (columnName.startsWith('batch_')) {
+      displayName = columnName.substring(6);
     }
     const formatted = displayName.split('_').map(word => 
       word.charAt(0).toUpperCase() + word.slice(1)
@@ -513,6 +586,47 @@ export default function OrdersPage() {
     setTempWidth('');
   };
 
+  // Batch notes editing handlers
+  const handleNotesEdit = (eventId: number, currentNotes: string) => {
+    setEditingNotes(eventId);
+    setTempNotes(currentNotes || '');
+  };
+
+  const handleNotesSave = (eventId: number) => {
+    // TODO: Save to Supabase later
+    console.log(`Saving notes for event ${eventId}:`, tempNotes);
+    
+    // For now, just update the local state (this won't persist)
+    setEvents(prev => prev.map(event => 
+      event.id === eventId 
+        ? { ...event, batch_notes: tempNotes }
+        : event
+    ));
+    
+    setEditingNotes(null);
+    setTempNotes('');
+  };
+
+  const handleNotesCancel = () => {
+    setEditingNotes(null);
+    setTempNotes('');
+  };
+
+  // Batch status editing handlers
+  const handleStatusChange = (eventId: number, newStatus: string) => {
+    // TODO: Save to Supabase later
+    console.log(`Changing status for event ${eventId} to:`, newStatus);
+    
+    // For now, just update the local state (this won't persist)
+    setEvents(prev => prev.map(event => 
+      event.id === eventId 
+        ? { ...event, batch_status: newStatus }
+        : event
+    ));
+    
+    setEditingStatus(null);
+  };
+
   const renderCellContent = (event: CombinedOrderEvent, columnName: string) => {
     const value = event[columnName as keyof CombinedOrderEvent];
     
@@ -583,6 +697,87 @@ export default function OrdersPage() {
         // Shipping address is now formatted as a readable string
         const addressText = value ? String(value) : '-';
         return <PopoverCutoffText text={addressText} className="whitespace-nowrap" />;
+      case 'batch_status':
+        // Status dropdown
+        const currentStatus = value ? String(value) : 'no-status';
+        const statusLabel = statusOptions.find(opt => opt.value === currentStatus)?.label || 'No Status';
+        
+        return (
+          <div data-status-field>
+            <Select
+              value={currentStatus}
+              onValueChange={(newStatus) => handleStatusChange(event.id, newStatus)}
+            >
+              <SelectTrigger className="w-full h-8 text-xs">
+              <SelectValue>
+                                 <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
+                   currentStatus === 'approved-batchable' ? 'bg-green-500' :
+                   currentStatus === 'contact-user' ? 'bg-blue-500' :
+                   currentStatus === 'alan-review' ? 'bg-yellow-500' :
+                   currentStatus === 'question' ? 'bg-purple-500' :
+                   currentStatus === 'hide' ? 'bg-red-500' :
+                   currentStatus === 'no-status' ? 'bg-gray-300' :
+                   'bg-gray-300'
+                 }`}></span>
+                {statusLabel}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {statusOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  <div className="flex items-center">
+                                         <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
+                       option.value === 'approved-batchable' ? 'bg-green-500' :
+                       option.value === 'contact-user' ? 'bg-blue-500' :
+                       option.value === 'alan-review' ? 'bg-yellow-500' :
+                       option.value === 'question' ? 'bg-purple-500' :
+                       option.value === 'hide' ? 'bg-red-500' :
+                       option.value === 'no-status' ? 'bg-gray-300' :
+                       'bg-gray-300'
+                     }`}></span>
+                    {option.label}
+                  </div>
+                </SelectItem>
+              ))}
+                         </SelectContent>
+           </Select>
+         </div>
+        );
+      case 'batch_notes':
+        // Editable notes field
+        if (editingNotes === event.id) {
+          return (
+                         <textarea
+               value={tempNotes}
+               onChange={(e) => setTempNotes(e.target.value)}
+               onKeyDown={(e) => {
+                 if (e.key === 'Enter' && !e.shiftKey) {
+                   e.preventDefault();
+                   handleNotesSave(event.id);
+                 } else if (e.key === 'Escape') {
+                   handleNotesCancel();
+                 }
+               }}
+               onBlur={() => handleNotesSave(event.id)}
+               className="w-full h-16 px-2 py-1 text-xs border border-gray-300 rounded resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+               placeholder="Add notes..."
+               data-notes-field
+               autoFocus
+             />
+          );
+        } else {
+          const notesText = value ? String(value) : 'Click to add notes...';
+                     return (
+             <div
+               onClick={() => handleNotesEdit(event.id, String(value || ''))}
+               className="cursor-pointer hover:bg-gray-100 p-1 rounded min-h-[20px] whitespace-pre-wrap"
+               title="Click to edit notes"
+               data-notes-field
+             >
+               <PopoverCutoffText text={notesText} className="text-gray-600" />
+             </div>
+           );
+        }
       case 'payload':
       case 'pmo_items':
       case 'pmo_metadata':
