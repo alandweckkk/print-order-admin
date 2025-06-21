@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Settings, Layout, FileImage, Mail, Tag, Users, Plus, Trash2, Check } from "lucide-react";
 import { getAllAdminProfiles, createAdminProfile, deleteAdminProfile, getCurrentAdminDefaults } from "@/app/orders/actions/admin-profiles";
+import Notes from "@/components/Notes";
 
 interface MenuItem {
   label: string;
@@ -228,6 +229,9 @@ export default function Navigation() {
           </Button>
         </div>
         <div className="flex items-center gap-4 relative">
+          {/* Notes Button */}
+          <Notes />
+          
           {/* Admin Profiles Button */}
           <Button
             ref={profilesButtonRef}

@@ -87,7 +87,7 @@ function OrderCard({ order, onRemove, className = "", size = 'medium' }: OrderCa
                   <img 
                     src={order.stickerSheetUrl} 
                     alt="3-up Sticker Sheet"
-                    className={size === 'one-by-one-huge' ? 'h-full w-auto object-contain' : 'w-full h-full object-cover'}
+                    className={size === 'one-by-one-huge' ? 'h-full w-auto object-contain' : 'w-full h-full object-contain'}
                   />
                 </div>
                 {/* Original image thumbnail - bottom-left corner */}
@@ -105,7 +105,7 @@ function OrderCard({ order, onRemove, className = "", size = 'medium' }: OrderCa
                 <img 
                   src={order.stickerSheetUrl} 
                   alt="Sticker Sheet Preview"
-                  className={size === 'one-by-one-huge' ? 'h-full w-auto object-contain' : 'w-full h-full object-cover'}
+                  className={size === 'one-by-one-huge' ? 'h-full w-auto object-contain' : 'w-full h-full object-contain'}
                 />
               </div>
             )}
