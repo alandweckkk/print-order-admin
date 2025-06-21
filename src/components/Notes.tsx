@@ -48,8 +48,6 @@ export default function Notes({ className = "" }: NotesProps) {
     }
   };
 
-
-
   return (
     <>
       {/* Notes Button */}
@@ -91,39 +89,34 @@ export default function Notes({ className = "" }: NotesProps) {
             </div>
 
             {/* Content */}
-            <div className="flex flex-col h-full">
-              <div className="flex-1 p-4 overflow-hidden">
-                <div className="h-full flex flex-col">
-                  <div className="flex items-center justify-between mb-2">
-                    <label htmlFor="notes-textarea" className="block text-sm font-medium text-gray-700">
-                      Your Notes
-                    </label>
-                    <Button
-                      onClick={handleSave}
-                      size="sm"
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                      data-save-button
-                    >
-                      <Save className="h-4 w-4 mr-1" />
-                      Save
-                    </Button>
-                  </div>
-                  {isLoading ? (
-                    <div className="flex-1 flex items-center justify-center text-gray-500">
-                      Loading notes...
-                    </div>
-                  ) : (
-                    <Textarea
-                      id="notes-textarea"
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      placeholder="Type your notes here..."
-                      className="flex-1 resize-none border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-h-0"
-                      rows={20}
-                    />
-                  )}
-                </div>
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-4">
+                <label htmlFor="notes-input" className="block text-sm font-medium text-gray-700">
+                  Your Notes
+                </label>
+                <Button
+                  onClick={handleSave}
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  data-save-button
+                >
+                  <Save className="h-4 w-4 mr-1" />
+                  Save
+                </Button>
               </div>
+              {isLoading ? (
+                <div className="flex items-center justify-center text-gray-500 py-4">
+                  Loading notes...
+                </div>
+              ) : (
+                <Textarea
+                  id="notes-input"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Type your notes here..."
+                  className="w-full border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              )}
             </div>
           </div>
         </div>

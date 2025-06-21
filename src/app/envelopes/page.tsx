@@ -18,7 +18,9 @@ import {
   AlignRight,
   Bold,
   Italic,
-  Underline
+  Underline,
+  Save,
+  Upload
 } from 'lucide-react';
 
 interface TextElement {
@@ -38,8 +40,37 @@ interface TextElement {
 
 export default function EnvelopePage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
-  const [textElements, setTextElements] = useState<TextElement[]>([]);
+  const [canvasSize, setCanvasSize] = useState({ width: 700, height: 500 });
+  const [textElements, setTextElements] = useState<TextElement[]>([
+    {
+      id: 'sender-address',
+      text: 'MakeMeASticker\n125 Cervantes Blvd\nSan Francisco, CA 94123',
+      x: 50,
+      y: 80,
+      fontSize: 14,
+      fontFamily: 'Arial',
+      color: '#000000',
+      fontWeight: 'normal',
+      fontStyle: 'normal',
+      textDecoration: 'none',
+      textAlign: 'left',
+      rotation: 0
+    },
+    {
+      id: 'recipient-address',
+      text: '{{shipping_address}}',
+      x: 350,
+      y: 280,
+      fontSize: 16,
+      fontFamily: 'Arial',
+      color: '#000000',
+      fontWeight: 'normal',
+      fontStyle: 'normal',
+      textDecoration: 'none',
+      textAlign: 'center',
+      rotation: 0
+    }
+  ]);
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -335,6 +366,45 @@ export default function EnvelopePage() {
     }
   };
 
+  // Save canvas attributes to localStorage
+  const saveCanvas = () => {
+    try {
+      const canvasData = {
+        textElements,
+        canvasSize,
+        savedAt: new Date().toISOString()
+      };
+      localStorage.setItem('envelope-design-data', JSON.stringify(canvasData));
+      alert('Canvas saved successfully!');
+    } catch (error) {
+      console.error('Error saving canvas:', error);
+      alert('Failed to save canvas. Please try again.');
+    }
+  };
+
+  // Load canvas attributes from localStorage
+  const loadCanvas = () => {
+    try {
+      const savedData = localStorage.getItem('envelope-design-data');
+      if (savedData) {
+        const canvasData = JSON.parse(savedData);
+        if (canvasData.textElements && canvasData.canvasSize) {
+          setTextElements(canvasData.textElements);
+          setCanvasSize(canvasData.canvasSize);
+          setSelectedElement(null);
+          alert(`Canvas loaded successfully! (Saved: ${new Date(canvasData.savedAt).toLocaleString()})`);
+        } else {
+          alert('Invalid saved data format.');
+        }
+      } else {
+        alert('No saved canvas found.');
+      }
+    } catch (error) {
+      console.error('Error loading canvas:', error);
+      alert('Failed to load canvas. Please try again.');
+    }
+  };
+
   const selectedElementData = selectedElement ? 
     textElements.find(el => el.id === selectedElement) : null;
 
@@ -351,14 +421,24 @@ export default function EnvelopePage() {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>Canvas</CardTitle>
+                <div className="flex items-center gap-3">
+                  <CardTitle>Canvas</CardTitle>
+                  <Button onClick={saveCanvas} size="sm" variant="outline">
+                    <Save className="h-4 w-4 mr-2" />
+                    Save
+                  </Button>
+                  <Button onClick={loadCanvas} size="sm" variant="outline">
+                    <Upload className="h-4 w-4 mr-2" />
+                    Load
+                  </Button>
+                </div>
                 <div className="flex items-center gap-2">
                   <Label htmlFor="canvas-width" className="text-sm">Size:</Label>
                   <Input
                     id="canvas-width"
                     type="number"
                     value={canvasSize.width}
-                    onChange={(e) => setCanvasSize(prev => ({ ...prev, width: parseInt(e.target.value) || 800 }))}
+                    onChange={(e) => setCanvasSize(prev => ({ ...prev, width: parseInt(e.target.value) || 700 }))}
                     className="w-20 h-8"
                     min="100"
                     max="2000"
@@ -367,7 +447,7 @@ export default function EnvelopePage() {
                   <Input
                     type="number"
                     value={canvasSize.height}
-                    onChange={(e) => setCanvasSize(prev => ({ ...prev, height: parseInt(e.target.value) || 600 }))}
+                    onChange={(e) => setCanvasSize(prev => ({ ...prev, height: parseInt(e.target.value) || 500 }))}
                     className="w-20 h-8"
                     min="100"
                     max="2000"
@@ -380,7 +460,7 @@ export default function EnvelopePage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="border rounded-lg p-4 bg-gray-50 overflow-auto">
+              <div className="border rounded-lg p-4 bg-gray-50 overflow-auto flex items-center justify-center">
                 <canvas
                   ref={canvasRef}
                   width={canvasSize.width}

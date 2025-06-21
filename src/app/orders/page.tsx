@@ -22,7 +22,7 @@ export default function OrdersPage() {
   const [stripeColumns, setStripeColumns] = useState<string[]>([]);
   const [physicalMailColumns, setPhysicalMailColumns] = useState<string[]>([]);
   const [modelRunsColumns, setModelRunsColumns] = useState<string[]>([]);
-  const [batchColumns] = useState<string[]>(['status', 'notes']);
+  const [batchColumns] = useState<string[]>(['status']);
 
   const [visibleColumns, setVisibleColumns] = useState<ColumnConfig[]>([]);
   const [showColumnPopover, setShowColumnPopover] = useState(false);
@@ -53,10 +53,6 @@ export default function OrdersPage() {
   // Add column width editing state
   const [editingWidth, setEditingWidth] = useState<string | null>(null);
   const [tempWidth, setTempWidth] = useState<string>('');
-
-  // Add batch notes editing state
-  const [editingNotes, setEditingNotes] = useState<number | null>(null); // Track which row is being edited
-  const [tempNotes, setTempNotes] = useState<string>(''); // Temporary notes value while editing
 
   // Add batch status editing state  
   const [editingStatus, setEditingStatus] = useState<number | null>(null); // Track which row status is being edited
@@ -309,7 +305,7 @@ export default function OrdersPage() {
         }
         
         // Remove the unwanted batch columns that were deleted
-        const unwantedBatchColumns = ['batch_address_approved', 'batch_artwork_approved', 'batch_no_red_flags', 'batch_has_other_orders'];
+        const unwantedBatchColumns = ['batch_address_approved', 'batch_artwork_approved', 'batch_no_red_flags', 'batch_has_other_orders', 'batch_notes'];
         const cleanedColumnConfigs = defaultColumnConfigs.filter(col => !unwantedBatchColumns.includes(col.name));
         
         setVisibleColumns(cleanedColumnConfigs);
@@ -351,7 +347,7 @@ export default function OrdersPage() {
 
   // Clean up any unwanted batch columns from visible columns
   useEffect(() => {
-    const unwantedBatchColumns = ['batch_address_approved', 'batch_artwork_approved', 'batch_no_red_flags', 'batch_has_other_orders'];
+    const unwantedBatchColumns = ['batch_address_approved', 'batch_artwork_approved', 'batch_no_red_flags', 'batch_has_other_orders', 'batch_notes'];
     
     setVisibleColumns(prev => {
       const filtered = prev.filter(col => !unwantedBatchColumns.includes(col.name));
@@ -397,15 +393,6 @@ export default function OrdersPage() {
         setShowColumnPopover(false);
       }
       
-      // Cancel notes editing when clicking outside (unless clicking on another notes field)
-      if (editingNotes !== null) {
-        const target = event.target as HTMLElement;
-        const isNotesField = target.closest('[data-notes-field]') || target.tagName === 'TEXTAREA';
-        if (!isNotesField) {
-          handleNotesCancel();
-        }
-      }
-
       // Cancel status editing when clicking outside
       if (editingStatus !== null) {
         const target = event.target as HTMLElement;
@@ -416,14 +403,14 @@ export default function OrdersPage() {
       }
     };
 
-    if (showColumnPopover || editingNotes !== null || editingStatus !== null) {
+    if (showColumnPopover || editingStatus !== null) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showColumnPopover, editingNotes, editingStatus]);
+  }, [showColumnPopover, editingStatus]);
 
   const formatCurrency = (amount: number | null) => {
     if (!amount) return '-';
@@ -607,32 +594,6 @@ export default function OrdersPage() {
     setTempWidth('');
   };
 
-  // Batch notes editing handlers
-  const handleNotesEdit = (eventId: number, currentNotes: string) => {
-    setEditingNotes(eventId);
-    setTempNotes(currentNotes || '');
-  };
-
-  const handleNotesSave = (eventId: number) => {
-    // TODO: Save to Supabase later
-    console.log(`Saving notes for event ${eventId}:`, tempNotes);
-    
-    // For now, just update the local state (this won't persist)
-    setEvents(prev => prev.map(event => 
-      event.id === eventId 
-        ? { ...event, batch_notes: tempNotes }
-        : event
-    ));
-    
-    setEditingNotes(null);
-    setTempNotes('');
-  };
-
-  const handleNotesCancel = () => {
-    setEditingNotes(null);
-    setTempNotes('');
-  };
-
   // Batch status editing handlers
   const handleStatusChange = (eventId: number, newStatus: string) => {
     // TODO: Save to Supabase later
@@ -764,41 +725,7 @@ export default function OrdersPage() {
            </Select>
          </div>
         );
-      case 'batch_notes':
-        // Editable notes field
-        if (editingNotes === event.id) {
-          return (
-                         <textarea
-               value={tempNotes}
-               onChange={(e) => setTempNotes(e.target.value)}
-               onKeyDown={(e) => {
-                 if (e.key === 'Enter' && !e.shiftKey) {
-                   e.preventDefault();
-                   handleNotesSave(event.id);
-                 } else if (e.key === 'Escape') {
-                   handleNotesCancel();
-                 }
-               }}
-               onBlur={() => handleNotesSave(event.id)}
-               className="w-full h-16 px-2 py-1 text-xs border border-gray-300 rounded resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-               placeholder="Add notes..."
-               data-notes-field
-               autoFocus
-             />
-          );
-        } else {
-          const notesText = value ? String(value) : 'Click to add notes...';
-                     return (
-             <div
-               onClick={() => handleNotesEdit(event.id, String(value || ''))}
-               className="cursor-pointer hover:bg-gray-100 p-1 rounded min-h-[20px] whitespace-pre-wrap"
-               title="Click to edit notes"
-               data-notes-field
-             >
-               <PopoverCutoffText text={notesText} className="text-gray-600" />
-             </div>
-           );
-        }
+
       case 'payload':
       case 'pmo_items':
       case 'pmo_metadata':

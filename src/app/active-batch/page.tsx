@@ -24,6 +24,8 @@ import {
   Mail 
 } from "lucide-react";
 import { useRouter } from 'next/navigation';
+import JSZip from 'jszip';
+import { formatShippingAddressMultiLine } from '@/lib/data-transformations';
 
 // Batch interface  
 interface Batch {
@@ -45,6 +47,7 @@ interface Order {
   envelopeUrl: string;
   status: string;
   isProcessed?: boolean; // Whether the sticker sheet is a processed blob URL
+  shippingAddress?: any; // Add shipping address data
 }
 
 type ViewMode = 'horizontal' | 'gallery' | 'one-by-one';
@@ -124,11 +127,12 @@ function OrderCard({ order, onRemove, className = "", size = 'medium' }: OrderCa
 
         {/* Envelope Preview */}
         <div className="mb-4">
-          <div className="h-24 bg-gray-100 rounded-lg mb-2 flex items-center justify-center overflow-hidden">
-            <img 
-              src={order.envelopeUrl} 
-              alt="Envelope Preview"
-              className="w-full h-full object-cover"
+          <div className="h-32 bg-gray-50 rounded-lg mb-2 flex items-center justify-center">
+            <EnvelopeCanvas 
+              shippingAddress={order.shippingAddress}
+              width={300}
+              height={120}
+              className="rounded"
             />
           </div>
           <p className="text-xs text-gray-500 font-medium">Mailing Label</p>
@@ -193,6 +197,145 @@ function useTouchGesture(onSwipeLeft: () => void, onSwipeRight: () => void) {
   return { handleTouchStart, handleTouchEnd };
 }
 
+// Text element interface for envelope canvas
+interface TextElement {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  fontSize: number;
+  fontFamily: string;
+  color: string;
+  fontWeight: 'normal' | 'bold';
+  fontStyle: 'normal' | 'italic';
+  textDecoration: 'none' | 'underline';
+  textAlign: 'left' | 'center' | 'right';
+  rotation: number;
+}
+
+// Envelope Canvas Component
+interface EnvelopeCanvasProps {
+  shippingAddress: any;
+  className?: string;
+  width?: number;
+  height?: number;
+}
+
+function EnvelopeCanvas({ shippingAddress, className = "", width = 350, height = 250 }: EnvelopeCanvasProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  
+  // Convert shipping address to formatted text
+  const getShippingAddressText = useCallback(() => {
+    if (!shippingAddress) {
+      return 'No Address Available';
+    }
+    
+    const addressLines = formatShippingAddressMultiLine(shippingAddress);
+    return addressLines.join('\n');
+  }, [shippingAddress]);
+
+  // Create text elements with actual shipping address
+  const textElements: TextElement[] = [
+    {
+      id: 'sender-address',
+      text: 'MakeMeASticker\n125 Cervantes Blvd\nSan Francisco, CA 94123',
+      x: 25,
+      y: 40,
+      fontSize: 10,
+      fontFamily: 'Arial',
+      color: '#000000',
+      fontWeight: 'normal',
+      fontStyle: 'normal',
+      textDecoration: 'none',
+      textAlign: 'left',
+      rotation: 0
+    },
+    {
+      id: 'recipient-address',
+      text: getShippingAddressText(),
+      x: width / 2,
+      y: height / 2,
+      fontSize: 12,
+      fontFamily: 'Arial',
+      color: '#000000',
+      fontWeight: 'normal',
+      fontStyle: 'normal',
+      textDecoration: 'none',
+      textAlign: 'center',
+      rotation: 0
+    }
+  ];
+
+  // Draw canvas content
+  const drawCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw white background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw border
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0, 0, canvas.width, canvas.height);
+
+    // Draw text elements
+    textElements.forEach(element => {
+      ctx.save();
+      
+      // Move to element position
+      ctx.translate(element.x, element.y);
+      
+      // Apply rotation
+      if (element.rotation !== 0) {
+        ctx.rotate((element.rotation * Math.PI) / 180);
+      }
+
+      // Set font properties
+      const fontStyle = element.fontStyle === 'italic' ? 'italic ' : '';
+      const fontWeight = element.fontWeight === 'bold' ? 'bold ' : '';
+      ctx.font = `${fontStyle}${fontWeight}${element.fontSize}px ${element.fontFamily}`;
+      ctx.fillStyle = element.color;
+      ctx.textAlign = element.textAlign;
+      
+      // Split text into lines
+      const lines = element.text.split('\n');
+      const lineHeight = element.fontSize * 1.2; // 1.2 line spacing
+      
+      // Draw each line of text
+      lines.forEach((line, index) => {
+        const yOffset = index * lineHeight;
+        ctx.fillText(line, 0, yOffset);
+      });
+
+      ctx.restore();
+    });
+  }, [textElements, width, height]);
+
+  // Update canvas when elements change
+  useEffect(() => {
+    drawCanvas();
+  }, [drawCanvas]);
+
+  return (
+    <div className={`${className}`}>
+      <canvas
+        ref={canvasRef}
+        width={width}
+        height={height}
+        className="border bg-white"
+      />
+    </div>
+  );
+}
+
 export default function ActiveBatchPage() {
   const router = useRouter();
   const [viewMode, setViewMode] = useState<ViewMode>('one-by-one');
@@ -248,7 +391,8 @@ export default function ActiveBatchPage() {
           stickerSheetUrl: stickerSheetUrl,
           originalImageUrl: originalImageUrl, // Store original for comparison view
           envelopeUrl: "/api/placeholder/300/200", // Default envelope
-          status: order.pmo_status === "shipped" ? "Printed" : "Ready"
+          status: order.pmo_status === "shipped" ? "Printed" : "Ready",
+          shippingAddress: order.shipping_address || order.pmo_shipping_address || null
         };
       });
       setOrders(convertedOrders);
@@ -284,7 +428,8 @@ export default function ActiveBatchPage() {
             envelopeUrl: "/api/placeholder/300/200", // Default envelope
             status: order.pmo_status === "shipped" ? "Printed" : "Ready",
             // Add processed status for display
-            isProcessed: !!processedBlobUrl
+            isProcessed: !!processedBlobUrl,
+            shippingAddress: order.shipping_address || order.pmo_shipping_address || null
           };
         });
         setOrders(convertedOrders);
@@ -326,15 +471,108 @@ export default function ActiveBatchPage() {
     }
   };
 
-  const handlePrintLabels = () => {
-    // TODO: Implement print labels functionality
-    console.log('Printing labels for batch...');
+  const handleDownloadBatchImages = async () => {
+    if (!activeBatch || !orders || orders.length === 0) {
+      console.error('No active batch or orders found');
+      alert('No batch or images to download');
+      return;
+    }
+
+    try {
+      const zip = new JSZip();
+      let successCount = 0;
+      let failCount = 0;
+
+      // Show progress
+      console.log(`Starting download of ${orders.length} images...`);
+
+      // Process each order's sticker sheet image
+      for (let i = 0; i < orders.length; i++) {
+        const order = orders[i];
+        const imageUrl = order.stickerSheetUrl;
+        
+        if (imageUrl && imageUrl.startsWith('http')) {
+          try {
+            console.log(`Downloading image ${i + 1}/${orders.length}: ${imageUrl}`);
+            
+            // Fetch image as blob
+            const response = await fetch(imageUrl);
+            if (!response.ok) {
+              throw new Error(`Failed to fetch image: ${response.status}`);
+            }
+            
+            const imageBlob = await response.blob();
+            
+            // Determine file extension from content type or URL
+            let extension = 'jpg';
+            const contentType = response.headers.get('content-type');
+            if (contentType?.includes('png')) {
+              extension = 'png';
+            } else if (contentType?.includes('webp')) {
+              extension = 'webp';
+            } else if (imageUrl.includes('.png')) {
+              extension = 'png';
+            } else if (imageUrl.includes('.webp')) {
+              extension = 'webp';
+            }
+            
+            // Create filename: order-{orderNumber}_sticker-sheet.{extension}
+            const filename = `order-${order.orderNumber}_sticker-sheet.${extension}`;
+            
+            // Add image to zip
+            zip.file(filename, imageBlob);
+            successCount++;
+            
+            console.log(`✅ Added ${filename} to zip`);
+            
+          } catch (error) {
+            console.error(`❌ Failed to download image for order ${order.orderNumber}:`, error);
+            failCount++;
+          }
+        } else {
+          console.warn(`⚠️ Skipping order ${order.orderNumber} - invalid image URL: ${imageUrl}`);
+          failCount++;
+        }
+      }
+
+      if (successCount === 0) {
+        alert('No images could be downloaded. Please check the image URLs.');
+        return;
+      }
+
+      // Generate zip file
+      console.log('Generating zip file...');
+      const zipBlob = await zip.generateAsync({
+        type: "blob",
+        streamFiles: true
+      });
+
+      // Create download link and trigger download
+      const link = document.createElement('a');
+      link.href = window.URL.createObjectURL(zipBlob);
+      link.download = `${activeBatch.name}_sticker_sheets.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up the object URL
+      window.URL.revokeObjectURL(link.href);
+
+      console.log(`✅ Successfully downloaded ${successCount} images in zip file`);
+      
+      if (failCount > 0) {
+        alert(`Download completed! ${successCount} images downloaded successfully. ${failCount} images failed to download.`);
+      } else {
+        alert(`Successfully downloaded all ${successCount} sticker sheet images!`);
+      }
+
+    } catch (error) {
+      console.error('❌ Error creating zip download:', error);
+      alert('An error occurred while creating the download. Please try again.');
+    }
   };
 
-  const handleExportZip = () => {
-    // TODO: Implement export ZIP functionality
-    console.log('Exporting batch as ZIP...');
-  };
+
 
   const handleCreateStickerSheets = async () => {
     if (!activeBatch || !activeBatch.order_data) {
@@ -499,25 +737,14 @@ export default function ActiveBatchPage() {
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
               <Button
                 variant="outline"
-                onClick={() => console.log('Copy print layout images...')}
+                onClick={handleDownloadBatchImages}
                 className="border-gray-300"
                 size={isMobile ? "sm" : "default"}
-                disabled={!activeBatch}
+                disabled={!activeBatch || !orders || orders.length === 0}
               >
                 <Download className="h-4 w-4 mr-1 sm:mr-2" />
-                <span className="hidden sm:inline">Copy Print Layout Images</span>
-                <span className="sm:hidden">Copy Images</span>
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handlePrintLabels}
-                className="border-gray-300"
-                size={isMobile ? "sm" : "default"}
-                disabled={!activeBatch}
-              >
-                <Printer className="h-4 w-4 mr-1 sm:mr-2" />
-                <span className="hidden sm:inline">Print Labels</span>
-                <span className="sm:hidden">Print</span>
+                <span className="hidden sm:inline">Download Batch Images</span>
+                <span className="sm:hidden">Download</span>
               </Button>
             </div>
           </div>
