@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PopoverCutoffText } from "@/components/ui/popover-cutoff-text";
 import { TableImagePopover } from "@/components/TableImagePopover";
+import { TableEnvelopePreview } from "@/components/TableEnvelopePreview";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -676,9 +677,19 @@ export default function OrdersPage() {
         );
 
       case 'pmo_shipping_address':
-        // Shipping address is now formatted as a readable string
-        const addressText = value ? String(value) : '-';
-        return <PopoverCutoffText text={addressText} className="whitespace-nowrap" />;
+        // Shipping address with envelope preview
+        if (value) {
+          try {
+            // Try to parse as JSON if it's a JSON string
+            const addressData = typeof value === 'string' && value.startsWith('{') ? JSON.parse(value) : value;
+            return <TableEnvelopePreview shippingAddress={addressData} />;
+          } catch {
+            // If parsing fails, treat as plain text
+            const addressText = String(value);
+            return <PopoverCutoffText text={addressText} className="whitespace-nowrap" />;
+          }
+        }
+        return <PopoverCutoffText text="-" className="whitespace-nowrap" />;
       case 'batch_status':
         // Status dropdown
         const currentStatus = value ? String(value) : 'no-status';

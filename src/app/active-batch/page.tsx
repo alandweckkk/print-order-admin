@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
 import { 
   MoreHorizontal, 
   Grid3X3, 
@@ -21,7 +22,8 @@ import {
   ChevronLeft, 
   ChevronRight, 
   X, 
-  Mail 
+  Mail,
+  Settings
 } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import JSZip from 'jszip';
@@ -65,7 +67,7 @@ function OrderCard({ order, onRemove, className = "", size = 'medium' }: OrderCa
     medium: "w-80", 
     large: "w-96 sm:w-80 md:w-96",
     "horizontal-large": "w-144", // 50% wider for horizontal view
-    "one-by-one-huge": "w-[800px] max-w-[800px]"   // Exactly 800px max width for one-by-one view
+    "one-by-one-huge": "w-[1300px] max-w-[1300px]"   // Exactly 1300px max width for one-by-one view
   };
 
   const imageClasses = {
@@ -79,75 +81,17 @@ function OrderCard({ order, onRemove, className = "", size = 'medium' }: OrderCa
   return (
     <Card className={`${sizeClasses[size]} ${className} flex-shrink-0 shadow-sm hover:shadow-md transition-shadow`}>
       <CardContent className="p-4">
-        {/* Sticker Sheet Preview */}
-        <div className="mb-3">
-          <div className={`${imageClasses[size]} bg-gray-100 rounded-lg mb-2 overflow-hidden relative ${size === 'one-by-one-huge' ? 'py-2.5' : ''}`}>
-            {order.isProcessed && order.originalImageUrl ? (
-              // Show sticker sheet centered with original as small thumbnail in bottom-left
-              <>
-                {/* Main sticker sheet - centered */}
-                <div className="flex items-center justify-center h-full">
-                  <img 
-                    src={order.stickerSheetUrl} 
-                    alt="3-up Sticker Sheet"
-                    className={size === 'one-by-one-huge' ? 'h-full w-auto object-contain' : 'w-full h-full object-contain'}
-                  />
-                </div>
-                {/* Original image thumbnail - bottom-left corner */}
-                <div className="absolute bottom-0 left-0 w-[50px] h-[50px] border-2 border-white rounded-lg overflow-hidden shadow-lg">
-                  <img 
-                    src={order.originalImageUrl} 
-                    alt="Original Thumbnail"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              </>
-            ) : (
-              // Show single image (original or processed)
-              <div className="flex items-center justify-center h-full">
-                <img 
-                  src={order.stickerSheetUrl} 
-                  alt="Sticker Sheet Preview"
-                  className={size === 'one-by-one-huge' ? 'h-full w-auto object-contain' : 'w-full h-full object-contain'}
-                />
-              </div>
-            )}
+        {/* Toolbar/Header */}
+        <div className="flex items-center justify-between pb-4 border-b border-gray-200 mb-4">
+          <div className="flex items-center gap-3">
+            <h3 className="font-semibold text-gray-900">Order #{order.orderNumber}</h3>
+            <Badge 
+              variant={order.status === "Ready" ? "default" : "secondary"}
+              className={order.status === "Ready" ? "bg-green-100 text-green-800" : ""}
+            >
+              {order.status}
+            </Badge>
           </div>
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-gray-500 font-medium">
-              {order.isProcessed ? 'Original | 3-up Layout' : 'Sticker Sheet'}
-            </p>
-            {order.isProcessed && (
-              <Badge className="bg-green-100 text-green-700 text-xs px-1 py-0">
-                Processed
-              </Badge>
-            )}
-          </div>
-        </div>
-
-        {/* Envelope Preview */}
-        <div className="mb-4">
-          <div className="h-32 bg-gray-50 rounded-lg mb-2 flex items-center justify-center">
-            <EnvelopeCanvas 
-              shippingAddress={order.shippingAddress}
-              width={300}
-              height={120}
-              className="rounded"
-            />
-          </div>
-          <p className="text-xs text-gray-500 font-medium">Mailing Label</p>
-        </div>
-
-
-
-        {/* Status and Remove Button */}
-        <div className="flex items-center justify-between">
-          <Badge 
-            variant={order.status === "Ready" ? "default" : "secondary"}
-            className={order.status === "Ready" ? "bg-green-100 text-green-800" : ""}
-          >
-            {order.status}
-          </Badge>
           <Button
             variant="outline"
             size="sm"
@@ -158,6 +102,128 @@ function OrderCard({ order, onRemove, className = "", size = 'medium' }: OrderCa
             <span className="hidden sm:inline">Remove</span>
           </Button>
         </div>
+        
+        {/* Side by side layout for one-by-one-huge view */}
+        {size === 'one-by-one-huge' ? (
+          <div className="flex gap-6 mb-4">
+            {/* Sticker Sheet Preview - Left Side */}
+            <div className="flex-1">
+              <div className={`${imageClasses[size]} bg-gray-100 rounded-lg mb-2 overflow-hidden relative py-2.5`}>
+                {order.isProcessed && order.originalImageUrl ? (
+                  // Show sticker sheet centered with original as small thumbnail in bottom-left
+                  <>
+                    {/* Main sticker sheet - centered */}
+                    <div className="flex items-center justify-center h-full">
+                      <img 
+                        src={order.stickerSheetUrl} 
+                        alt="3-up Sticker Sheet"
+                        className="h-full w-auto object-contain"
+                      />
+                    </div>
+                    {/* Original image thumbnail - bottom-left corner */}
+                    <div className="absolute bottom-0 left-0 w-[50px] h-[50px] border-2 border-white rounded-lg overflow-hidden shadow-lg">
+                      <img 
+                        src={order.originalImageUrl} 
+                        alt="Original Thumbnail"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  // Show single image (original or processed)
+                  <div className="flex items-center justify-center h-full">
+                    <img 
+                      src={order.stickerSheetUrl} 
+                      alt="Sticker Sheet Preview"
+                      className="h-full w-auto object-contain"
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center justify-end">
+                {order.isProcessed && (
+                  <Badge className="bg-green-100 text-green-700 text-xs px-1 py-0">
+                    Processed
+                  </Badge>
+                )}
+              </div>
+            </div>
+
+            {/* Envelope Preview - Right Side */}
+            <div className="flex-1">
+              <div className="bg-gray-50 rounded-lg flex items-center justify-center p-8 min-h-[600px]">
+                <EnvelopeCanvas 
+                  shippingAddress={order.shippingAddress}
+                  width={700}
+                  height={500}
+                  className="rounded shadow-sm"
+                />
+              </div>
+            </div>
+          </div>
+        ) : (
+          // Original vertical layout for other sizes
+          <>
+            {/* Sticker Sheet Preview */}
+            <div className="mb-3">
+              <div className={`${imageClasses[size]} bg-gray-100 rounded-lg mb-2 overflow-hidden relative`}>
+                {order.isProcessed && order.originalImageUrl ? (
+                  // Show sticker sheet centered with original as small thumbnail in bottom-left
+                  <>
+                    {/* Main sticker sheet - centered */}
+                    <div className="flex items-center justify-center h-full">
+                      <img 
+                        src={order.stickerSheetUrl} 
+                        alt="3-up Sticker Sheet"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                    {/* Original image thumbnail - bottom-left corner */}
+                    <div className="absolute bottom-0 left-0 w-[50px] h-[50px] border-2 border-white rounded-lg overflow-hidden shadow-lg">
+                      <img 
+                        src={order.originalImageUrl} 
+                        alt="Original Thumbnail"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  // Show single image (original or processed)
+                  <div className="flex items-center justify-center h-full">
+                    <img 
+                      src={order.stickerSheetUrl} 
+                      alt="Sticker Sheet Preview"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center justify-end">
+                {order.isProcessed && (
+                  <Badge className="bg-green-100 text-green-700 text-xs px-1 py-0">
+                    Processed
+                  </Badge>
+                )}
+              </div>
+            </div>
+
+            {/* Envelope Preview */}
+            <div className="mb-4">
+              <div className="bg-gray-50 rounded-lg mb-2 flex items-center justify-center p-8 min-h-[600px]">
+                <EnvelopeCanvas 
+                  shippingAddress={order.shippingAddress}
+                  width={700}
+                  height={500}
+                  className="rounded shadow-sm"
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+
+
+
       </CardContent>
     </Card>
   );
@@ -226,11 +292,21 @@ function EnvelopeCanvas({ shippingAddress, className = "", width = 350, height =
   
   // Convert shipping address to formatted text
   const getShippingAddressText = useCallback(() => {
+    console.log('🏠 Shipping address data:', shippingAddress);
+    
     if (!shippingAddress) {
       return 'No Address Available';
     }
     
+    // Handle string addresses (like pmo_shipping_address)
+    if (typeof shippingAddress === 'string') {
+      // Split on commas and clean up spacing
+      return shippingAddress.split(',').map(line => line.trim()).join('\n');
+    }
+    
+    // Handle structured address objects
     const addressLines = formatShippingAddressMultiLine(shippingAddress);
+    console.log('📮 Formatted address lines:', addressLines);
     return addressLines.join('\n');
   }, [shippingAddress]);
 
@@ -239,9 +315,9 @@ function EnvelopeCanvas({ shippingAddress, className = "", width = 350, height =
     {
       id: 'sender-address',
       text: 'MakeMeASticker\n125 Cervantes Blvd\nSan Francisco, CA 94123',
-      x: 25,
+      x: 45, // 20px padding + 25px margin
       y: 40,
-      fontSize: 10,
+      fontSize: 11,
       fontFamily: 'Arial',
       color: '#000000',
       fontWeight: 'normal',
@@ -254,11 +330,11 @@ function EnvelopeCanvas({ shippingAddress, className = "", width = 350, height =
       id: 'recipient-address',
       text: getShippingAddressText(),
       x: width / 2,
-      y: height / 2,
-      fontSize: 12,
+      y: height / 2 - 10, // Slightly higher than center
+      fontSize: 14,
       fontFamily: 'Arial',
       color: '#000000',
-      fontWeight: 'normal',
+      fontWeight: 'bold', // Make it bold for better visibility
       fontStyle: 'normal',
       textDecoration: 'none',
       textAlign: 'center',
@@ -278,13 +354,13 @@ function EnvelopeCanvas({ shippingAddress, className = "", width = 350, height =
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
     // Draw white background
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = '#ffffff'; // White background
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Draw border
+    // Draw border with 20px padding on left and right
     ctx.strokeStyle = '#e5e7eb';
     ctx.lineWidth = 1;
-    ctx.strokeRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeRect(20, 0, canvas.width - 40, canvas.height);
 
     // Draw text elements
     textElements.forEach(element => {
@@ -307,7 +383,7 @@ function EnvelopeCanvas({ shippingAddress, className = "", width = 350, height =
       
       // Split text into lines
       const lines = element.text.split('\n');
-      const lineHeight = element.fontSize * 1.2; // 1.2 line spacing
+      const lineHeight = element.fontSize * 1.3; // Increased line spacing for better readability
       
       // Draw each line of text
       lines.forEach((line, index) => {
@@ -418,6 +494,9 @@ export default function ActiveBatchPage() {
           const originalImageUrl = order.original_output_image_url || order.mr_output_image_url || order.output_image_url || "/api/placeholder/400/500";
           const stickerSheetUrl = processedBlobUrl || originalImageUrl;
           
+          const shippingAddress = order.shipping_address || order.pmo_shipping_address || null;
+          console.log(`🚛 Order ${order.id} shipping address:`, shippingAddress);
+          
           return {
             id: order.id,
             modelRunId: order.mr_id || `MR-${Date.now()}-${index}`,
@@ -429,7 +508,7 @@ export default function ActiveBatchPage() {
             status: order.pmo_status === "shipped" ? "Printed" : "Ready",
             // Add processed status for display
             isProcessed: !!processedBlobUrl,
-            shippingAddress: order.shipping_address || order.pmo_shipping_address || null
+            shippingAddress: shippingAddress
           };
         });
         setOrders(convertedOrders);
@@ -712,20 +791,17 @@ export default function ActiveBatchPage() {
                 value={selectedBatchId} 
                 onValueChange={(value: string) => selectBatch(value)}
               >
-                <SelectTrigger className="w-[250px]">
+                <SelectTrigger className="w-[350px]">
                   <SelectValue placeholder="Select a batch" />
                 </SelectTrigger>
                 <SelectContent>
                   {batches.map((batch) => (
                     <SelectItem key={batch.batch_id} value={batch.batch_id}>
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4" />
-                        <div className="flex flex-col">
-                          <span className="font-medium">{batch.name}</span>
-                          <span className="text-xs text-gray-500">
-                            {batch.order_ids.length} orders • {new Date(batch.created_at).toLocaleDateString()}
-                          </span>
-                        </div>
+                      <div className="text-left">
+                        <span className="font-medium text-sm">{batch.name}</span>
+                        <span className="text-xs text-gray-500 ml-2">
+                          {batch.order_ids.length} orders • {new Date(batch.created_at).toLocaleDateString()}
+                        </span>
                       </div>
                     </SelectItem>
                   ))}
@@ -733,102 +809,74 @@ export default function ActiveBatchPage() {
               </Select>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-              <Button
-                variant="outline"
-                onClick={handleDownloadBatchImages}
-                className="border-gray-300"
-                size={isMobile ? "sm" : "default"}
-                disabled={!activeBatch || !orders || orders.length === 0}
-              >
-                <Download className="h-4 w-4 mr-1 sm:mr-2" />
-                <span className="hidden sm:inline">Download Batch Images</span>
-                <span className="sm:hidden">Download</span>
-              </Button>
+            {/* Right Side Controls */}
+            <div className="flex items-center gap-2">
+              {/* View Mode Selector */}
+              {!isMobile && activeBatch && (
+                <Select value={viewMode} onValueChange={(value: ViewMode) => setViewMode(value)}>
+                  <SelectTrigger className="w-auto px-2">
+                    <Settings className="h-4 w-4" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="gallery">
+                      <div className="flex items-center gap-2">
+                        <Grid3X3 className="h-3 w-3" />
+                        Gallery
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="horizontal">
+                      <div className="flex items-center gap-2">
+                        <MoreHorizontal className="h-3 w-3" />
+                        Horizontal
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="one-by-one">
+                      <div className="flex items-center gap-2">
+                        <Maximize2 className="h-3 w-3" />
+                        1-by-1
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+              
+              {/* Batch Actions - Rounded Rectangle with Divider */}
+              <div className="flex border border-gray-300 rounded-lg overflow-hidden">
+                <button
+                  onClick={handleCreateStickerSheets}
+                  disabled={isProcessingStickerSheets || !activeBatch?.order_data?.length}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                >
+                  {isProcessingStickerSheets ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                      <span>Processing ({processingProgress.current}/{processingProgress.total})</span>
+                    </>
+                  ) : (
+                    <>
+                      <Grid3X3 className="h-4 w-4" />
+                      <span>Create Sticker Sheets</span>
+                    </>
+                  )}
+                </button>
+                <div className="w-px bg-gray-300"></div>
+                <button
+                  onClick={handleDownloadBatchImages}
+                  disabled={!activeBatch || !orders || orders.length === 0}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Download All Images</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Active Batch Info Bar */}
-        {activeBatch && (
-          <div className="bg-blue-50 border-b border-blue-200 px-4 sm:px-8 py-3 relative">
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="font-medium text-blue-900">Active Batch: {activeBatch.name}</h4>
-                <p className="text-sm text-blue-700">
-                  {activeBatch.order_ids.length} orders • Created {new Date(activeBatch.created_at).toLocaleDateString()}
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <Badge className="bg-blue-100 text-blue-800">
-                  Active
-                </Badge>
-                {/* View Mode Selector for active batch */}
-                {!isMobile && (
-                  <Select value={viewMode} onValueChange={(value: ViewMode) => setViewMode(value)}>
-                    <SelectTrigger className="w-[140px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="gallery">
-                        <div className="flex items-center gap-2">
-                          <Grid3X3 className="h-3 w-3" />
-                          Gallery
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="horizontal">
-                        <div className="flex items-center gap-2">
-                          <MoreHorizontal className="h-3 w-3" />
-                          Horizontal
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="one-by-one">
-                        <div className="flex items-center gap-2">
-                          <Maximize2 className="h-3 w-3" />
-                          1-by-1
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-            </div>
-            
-            {/* Centered Green Button */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <Button 
-                onClick={handleCreateStickerSheets}
-                disabled={isProcessingStickerSheets || !activeBatch?.order_data?.length}
-                className="bg-green-500 hover:bg-green-600 text-white pointer-events-auto disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ width: '200px', height: '50px' }}
-              >
-                {isProcessingStickerSheets ? (
-                  <div className="flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span className="text-sm">
-                      Processing {processingProgress.current}/{processingProgress.total}
-                    </span>
-                  </div>
-                ) : (
-                  'Create Sticker Sheets'
-                )}
-              </Button>
-            </div>
-          </div>
-        )}
+
 
         {/* Content Area */}
         <div className="p-4 sm:p-8 relative">
-          {/* Centered Layout All in Batch Image */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <img 
-              src="/layout-all-in-batch.png" 
-              alt="Layout All in Batch"
-              className="max-w-full max-h-full object-contain opacity-10"
-            />
-          </div>
-
           {/* Order Views - Only show when there's an active batch */}
           {activeBatch && orders.length > 0 && (
             <>
@@ -866,16 +914,40 @@ export default function ActiveBatchPage() {
           {/* 1-by-1 View */}
           {(viewMode === 'one-by-one' || isMobile) && orders.length > 0 && (
             <div className="flex flex-col items-center">
-              {/* Navigation Info */}
-              <div className="mb-4 sm:mb-6 text-center">
-                <p className="text-gray-600 text-sm sm:text-base">
-                  Order {currentOrderIndex + 1} of {orders.length}
-                </p>
-                {isMobile && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    Swipe left/right to navigate
+              {/* Navigation Info with Controls */}
+              <div className="mb-4 sm:mb-6 flex items-center justify-center gap-4">
+                <Button
+                  variant="outline"
+                  onClick={prevOrder}
+                  disabled={currentOrderIndex === 0}
+                  size={isMobile ? "sm" : "default"}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">Previous</span>
+                  <span className="sm:hidden">Prev</span>
+                </Button>
+                
+                <div className="text-center">
+                  <p className="text-gray-600 text-sm sm:text-base">
+                    Order {currentOrderIndex + 1} of {orders.length}
                   </p>
-                )}
+                  {isMobile && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Swipe left/right to navigate
+                    </p>
+                  )}
+                </div>
+                
+                <Button
+                  variant="outline"
+                  onClick={nextOrder}
+                  disabled={currentOrderIndex === orders.length - 1}
+                  size={isMobile ? "sm" : "default"}
+                >
+                  <span className="hidden sm:inline">Next</span>
+                  <span className="sm:hidden">Next</span>
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
               </div>
 
               {/* Single Order Card */}
@@ -888,43 +960,7 @@ export default function ActiveBatchPage() {
                 />
               </div>
 
-              {/* Navigation Controls */}
-              <div className="flex items-center gap-2 sm:gap-4 mb-8 w-full max-w-md sm:max-w-none justify-center">
-                <Button
-                  variant="outline"
-                  onClick={prevOrder}
-                  disabled={currentOrderIndex === 0}
-                  size={isMobile ? "default" : "lg"}
-                  className="flex-1 sm:flex-none"
-                >
-                  <ChevronLeft className="h-4 w-4 mr-1 sm:mr-2" />
-                  <span className="hidden sm:inline">Previous</span>
-                  <span className="sm:hidden">Prev</span>
-                </Button>
-                
-                <Button
-                  onClick={() => markAsPrinted(orders[currentOrderIndex].id)}
-                  disabled={orders[currentOrderIndex].status === "Printed"}
-                  className="bg-green-600 hover:bg-green-700 flex-1 sm:flex-none"
-                  size={isMobile ? "default" : "lg"}
-                >
-                  <Printer className="h-4 w-4 mr-1 sm:mr-2" />
-                  <span className="hidden sm:inline">Mark as Printed</span>
-                  <span className="sm:hidden">Print</span>
-                </Button>
 
-                <Button
-                  variant="outline"
-                  onClick={nextOrder}
-                  disabled={currentOrderIndex === orders.length - 1}
-                  size={isMobile ? "default" : "lg"}
-                  className="flex-1 sm:flex-none"
-                >
-                  <span className="hidden sm:inline">Next</span>
-                  <span className="sm:hidden">Next</span>
-                  <ChevronRight className="h-4 w-4 ml-1 sm:ml-2" />
-                </Button>
-              </div>
             </div>
           )}
             </>
