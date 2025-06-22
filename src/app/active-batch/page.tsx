@@ -11,6 +11,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 import { 
   MoreHorizontal, 
@@ -21,7 +30,8 @@ import {
   ChevronLeft, 
   ChevronRight, 
   X, 
-  Settings
+  Settings,
+  Edit3
 } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import JSZip from 'jszip';
@@ -30,6 +40,7 @@ import { fetchBatchesFromDatabase, DatabaseBatch } from './actions/fetch-batches
 import { fetchBatchOrders } from './actions/fetch-batch-orders';
 import { updateStickerSheetUrl } from './actions/update-sticker-sheet-url';
 import { removeOrderFromBatch } from './actions/remove-order-from-batch';
+import { updateShippingAddress } from './actions/update-shipping-address';
 
 // Note: This page is temporarily disabled while transitioning to database-based batches
 // TODO: Implement database-based batch loading to replace localStorage functionality
@@ -84,6 +95,7 @@ type ViewMode = 'horizontal' | 'gallery' | 'one-by-one';
 interface OrderCardProps {
   order: Order;
   onRemove: (id: string) => void;
+  onUpdateAddress?: (orderId: string, newAddress: ShippingAddress) => Promise<void>;
   className?: string;
   size?: 'small' | 'medium' | 'large' | 'horizontal-large' | 'one-by-one-huge';
 }
@@ -232,7 +244,86 @@ function EnvelopeCanvas({ shippingAddress, className = "", width = 350, height =
   );
 }
 
-function OrderCard({ order, onRemove, className = "", size = 'medium' }: OrderCardProps) {
+function OrderCard({ order, onRemove, onUpdateAddress, className = "", size = 'medium' }: OrderCardProps) {
+  const [isEditingAddress, setIsEditingAddress] = useState(false);
+  const [isSavingAddress, setIsSavingAddress] = useState(false);
+  const [editedAddress, setEditedAddress] = useState<ShippingAddress>({
+    name: '',
+    line1: '',
+    line2: '',
+    city: '',
+    state: '',
+    postal_code: '',
+    country: 'US'
+  });
+
+  // Parse current address for editing
+  const parseCurrentAddress = useCallback((): ShippingAddress => {
+    if (!order.shippingAddress) {
+      return {
+        name: '',
+        line1: '',
+        line2: '',
+        city: '',
+        state: '',
+        postal_code: '',
+        country: 'US'
+      };
+    }
+    
+    // If it's already a structured address object, use it
+    if (typeof order.shippingAddress === 'object') {
+      return {
+        name: order.shippingAddress.name || '',
+        line1: order.shippingAddress.line1 || '',
+        line2: order.shippingAddress.line2 || '',
+        city: order.shippingAddress.city || '',
+        state: order.shippingAddress.state || '',
+        postal_code: order.shippingAddress.postal_code || '',
+        country: order.shippingAddress.country || 'US'
+      };
+    }
+    
+    // If it's a string, try to parse it (basic parsing)
+    const lines = order.shippingAddress.split(',').map(line => line.trim());
+    return {
+      name: lines[0] || '',
+      line1: lines[1] || '',
+      line2: '',
+      city: lines[2] || '',
+      state: lines[3] || '',
+      postal_code: lines[4] || '',
+      country: 'US'
+    };
+  }, [order.shippingAddress]);
+
+  const handleEditAddress = () => {
+    setEditedAddress(parseCurrentAddress());
+    setIsEditingAddress(true);
+  };
+
+  const handleSaveAddress = async () => {
+    if (onUpdateAddress) {
+      setIsSavingAddress(true);
+      try {
+        await onUpdateAddress(order.id, editedAddress);
+        setIsEditingAddress(false);
+      } catch (error) {
+        // Error is already handled in onUpdateAddress, just keep dialog open
+        console.error('Error in handleSaveAddress:', error);
+      } finally {
+        setIsSavingAddress(false);
+      }
+    }
+  };
+
+  const updateAddressField = (field: keyof ShippingAddress, value: string) => {
+    setEditedAddress(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
   const sizeClasses = {
     'small': 'w-64',
     'medium': 'w-80',
@@ -263,15 +354,126 @@ function OrderCard({ order, onRemove, className = "", size = 'medium' }: OrderCa
               {order.status}
             </Badge>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onRemove(order.id)}
-            className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-          >
-            <X className="h-4 w-4 mr-1" />
-            <span className="hidden sm:inline">Remove</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Dialog open={isEditingAddress} onOpenChange={setIsEditingAddress}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleEditAddress}
+                  disabled={isSavingAddress}
+                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
+                >
+                  <Edit3 className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">Edit Address</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Edit Shipping Address</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2">
+                      <Label htmlFor="name">Full Name</Label>
+                      <Input
+                        id="name"
+                        value={editedAddress.name}
+                        onChange={(e) => updateAddressField('name', e.target.value)}
+                        placeholder="John Doe"
+                      />
+                    </div>
+                    
+                    <div className="col-span-2">
+                      <Label htmlFor="line1">Address Line 1</Label>
+                      <Input
+                        id="line1"
+                        value={editedAddress.line1}
+                        onChange={(e) => updateAddressField('line1', e.target.value)}
+                        placeholder="123 Main Street"
+                      />
+                    </div>
+                    
+                    <div className="col-span-2">
+                      <Label htmlFor="line2">Address Line 2 (Optional)</Label>
+                      <Input
+                        id="line2"
+                        value={editedAddress.line2}
+                        onChange={(e) => updateAddressField('line2', e.target.value)}
+                        placeholder="Apt 4B, Suite 200, etc."
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="city">City</Label>
+                      <Input
+                        id="city"
+                        value={editedAddress.city}
+                        onChange={(e) => updateAddressField('city', e.target.value)}
+                        placeholder="New York"
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label htmlFor="state">State</Label>
+                        <Input
+                          id="state"
+                          value={editedAddress.state}
+                          onChange={(e) => updateAddressField('state', e.target.value)}
+                          placeholder="CA"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="postal_code">ZIP</Label>
+                        <Input
+                          id="postal_code"
+                          value={editedAddress.postal_code}
+                          onChange={(e) => updateAddressField('postal_code', e.target.value)}
+                          placeholder="10001"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="col-span-2">
+                      <Label htmlFor="country">Country</Label>
+                      <Input
+                        id="country"
+                        value={editedAddress.country}
+                        onChange={(e) => updateAddressField('country', e.target.value)}
+                        placeholder="US"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-end gap-2 pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsEditingAddress(false)}
+                      disabled={isSavingAddress}
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      onClick={handleSaveAddress}
+                      disabled={isSavingAddress}
+                    >
+                      {isSavingAddress ? 'Saving...' : 'Save Address'}
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onRemove(order.id)}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+            >
+              <X className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">Remove</span>
+            </Button>
+          </div>
         </div>
         
         {/* Side by side layout for one-by-one-huge view */}
@@ -595,6 +797,43 @@ export default function ActiveBatchPage() {
     } catch (error) {
       console.error('Error removing order:', error);
       alert('An error occurred while removing the order. Please try again.');
+    }
+  };
+
+  const handleUpdateAddress = async (orderId: string, newAddress: ShippingAddress) => {
+    // Find the order to get its stripe payment ID
+    const order = orders.find(o => o.id === orderId);
+    if (!order) {
+      console.error('Order not found:', orderId);
+      alert('Order not found. Please try again.');
+      return;
+    }
+
+    try {
+      console.log(`🔄 Updating shipping address for order ${order.orderNumber}...`);
+      
+      // Update Supabase with the new address
+      const result = await updateShippingAddress(order.stripePaymentId, newAddress);
+      
+      if (!result.success) {
+        console.error('Failed to update shipping address:', result.error);
+        alert(`Failed to update address: ${result.error}`);
+        return;
+      }
+
+      // Update local state on successful database update
+      setOrders(prev => prev.map(o => 
+        o.id === orderId 
+          ? { ...o, shippingAddress: newAddress }
+          : o
+      ));
+      
+      console.log(`✅ Successfully updated shipping address for order ${order.orderNumber}`);
+      alert(`Address updated successfully for order ${order.orderNumber}!`);
+      
+    } catch (error) {
+      console.error('Error updating address:', error);
+      alert('An unexpected error occurred while updating the address. Please try again.');
     }
   };
 
@@ -1123,6 +1362,7 @@ export default function ActiveBatchPage() {
                         key={order.id}
                         order={order}
                         onRemove={handleRemoveOrder}
+                        onUpdateAddress={handleUpdateAddress}
                         size="horizontal-large"
                       />
                     ))}
@@ -1138,6 +1378,7 @@ export default function ActiveBatchPage() {
                       key={order.id}
                       order={order}
                       onRemove={handleRemoveOrder}
+                      onUpdateAddress={handleUpdateAddress}
                       size="medium"
                       className="w-full"
                     />
@@ -1184,6 +1425,7 @@ export default function ActiveBatchPage() {
                     <OrderCard
                       order={orders[currentOrderIndex]}
                       onRemove={handleRemoveOrder}
+                      onUpdateAddress={handleUpdateAddress}
                       size="one-by-one-huge"
                       className="mx-auto w-full sm:w-auto"
                     />

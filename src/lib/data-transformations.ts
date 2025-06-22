@@ -130,10 +130,15 @@ export function formatShippingAddressMultiLine(address: ShippingAddress | string
     lines.push(address.name);
   }
 
+  // Combine line1 and line2 on the same line if both exist
   if (address.line1) {
-    lines.push(address.line1);
-  }
-  if (address.line2) {
+    let addressLine = address.line1;
+    if (address.line2) {
+      addressLine += ` ${address.line2}`;
+    }
+    lines.push(addressLine);
+  } else if (address.line2) {
+    // If only line2 exists (unusual case)
     lines.push(address.line2);
   }
 
