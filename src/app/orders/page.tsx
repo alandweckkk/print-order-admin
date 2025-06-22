@@ -11,11 +11,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
-import { fetchPhysicalStripeEvents, fetchStripeEventColumns, fetchPhysicalMailOrderColumns, fetchModelRunsColumns, CombinedOrderEvent, analyzePhysicalMailOrderJoinGaps } from './actions/pull-orders-from-supabase';
+import { fetchPhysicalStripeEvents, fetchStripeEventColumns, fetchPhysicalMailOrderColumns, fetchModelRunsColumns, CombinedOrderEvent } from './actions/pull-orders-from-supabase';
 import { getCurrentAdminDefaults, saveCurrentAdminDefaults, ColumnConfig } from './actions/admin-profiles';
 import { createBatch, Batch } from './actions/create-batch';
 import { updateOrderStatus } from './actions/update-order-status';
 import { updateOrderVisibility } from './actions/update-order-visibility';
+import { updateOrderNotes } from './actions/update-order-notes';
 
 export default function OrdersPage() {
   const [events, setEvents] = useState<CombinedOrderEvent[]>([]);
@@ -25,7 +26,7 @@ export default function OrdersPage() {
   const [stripeColumns, setStripeColumns] = useState<string[]>([]);
   const [physicalMailColumns, setPhysicalMailColumns] = useState<string[]>([]);
   const [modelRunsColumns, setModelRunsColumns] = useState<string[]>([]);
-  const [batchColumns] = useState<string[]>(['status', 'notes']);
+  const [batchColumns] = useState<string[]>(['status', 'order_notes']);
 
   const [visibleColumns, setVisibleColumns] = useState<ColumnConfig[]>([]);
   const [showColumnPopover, setShowColumnPopover] = useState(false);
@@ -231,10 +232,12 @@ export default function OrdersPage() {
     
     // Batch management columns - wider for readability
     if (columnName.startsWith('batch_')) {
-      if (columnName === 'batch_notes') {
-        return 200; // Wider for notes input
-      }
       return 120;
+    }
+    
+    // Order notes column - wider for notes input
+    if (columnName === 'order_notes') {
+      return 200;
     }
     
     // Default width for other columns
@@ -320,13 +323,14 @@ export default function OrdersPage() {
             'mr_output_image_url',
             'mr_input_image_url',
             // Batch management columns (now persistent)
-            'batch_status'
+            'batch_status',
+            'order_notes'
           ];
           defaultColumnConfigs = convertToColumnConfigs(fallbackColumns);
           console.log('⚠️ No admin defaults found, using fallback columns:', defaultColumnConfigs);
         }
         
-        // Remove the unwanted batch columns that were deleted
+        // Remove the unwanted batch columns that were deleted (but keep order_notes)
         const unwantedBatchColumns = ['batch_address_approved', 'batch_artwork_approved', 'batch_no_red_flags', 'batch_has_other_orders', 'batch_notes'];
         const cleanedColumnConfigs = defaultColumnConfigs.filter(col => !unwantedBatchColumns.includes(col.name));
         
@@ -355,7 +359,8 @@ export default function OrdersPage() {
           'mr_original_output_image_url',
           'mr_output_image_url',
           'mr_input_image_url',
-          'batch_status'
+          'batch_status',
+          'order_notes'
         ];
         const fallbackColumnConfigs = fallbackColumns.map(columnName => ({
           name: columnName,
@@ -399,6 +404,15 @@ export default function OrdersPage() {
         const { events: stripeEvents, total } = await fetchPhysicalStripeEvents(currentPage, eventsPerPage);
         setEvents(stripeEvents);
         setTotalEvents(total);
+        
+        // Initialize rowNotes with order_notes from database
+        const initialNotes: Record<number, string> = {};
+        stripeEvents.forEach(event => {
+          if (event.order_notes) {
+            initialNotes[event.id] = event.order_notes;
+          }
+        });
+        setRowNotes(initialNotes);
       } catch (error) {
         console.error('Error loading page data:', error);
       } finally {
@@ -515,6 +529,12 @@ export default function OrdersPage() {
     } else if (columnName.startsWith('batch_')) {
       displayName = columnName.substring(6);
     }
+    
+    // Special handling for order_notes
+    if (columnName === 'order_notes') {
+      displayName = 'notes';
+    }
+    
     const formatted = displayName.split('_').map(word => 
       word.charAt(0).toUpperCase() + word.slice(1)
     ).join(' ');
@@ -528,7 +548,7 @@ export default function OrdersPage() {
       return 'text-purple-600'; // Purple for physical mail orders
     } else if (columnName.startsWith('mr_')) {
       return 'text-green-600'; // Green for model runs
-    } else if (columnName.startsWith('batch_')) {
+    } else if (columnName.startsWith('batch_') || columnName === 'order_notes') {
       return 'text-orange-600'; // Orange for batch management
     }
     return 'text-blue-600'; // Blue for stripe captured events
@@ -677,8 +697,9 @@ export default function OrdersPage() {
     }
 
     // Extract the stripe payment ID - this could be from different sources
-    const stripePaymentId = (event.payload as any)?.data?.object?.id || 
-                           (event.payload as any)?.payment_intent_id ||
+    const payload = event.payload as { data?: { object?: { id?: string } }; payment_intent_id?: string };
+    const stripePaymentId = payload?.data?.object?.id || 
+                           payload?.payment_intent_id ||
                            event.transaction_id;
 
     if (!stripePaymentId) {
@@ -732,8 +753,9 @@ export default function OrdersPage() {
     }
 
     // Extract the stripe payment ID
-    const stripePaymentId = (event.payload as any)?.data?.object?.id || 
-                           (event.payload as any)?.payment_intent_id ||
+    const payload = event.payload as { data?: { object?: { id?: string } }; payment_intent_id?: string };
+    const stripePaymentId = payload?.data?.object?.id || 
+                           payload?.payment_intent_id ||
                            event.transaction_id;
 
     if (!stripePaymentId) {
@@ -892,13 +914,37 @@ export default function OrdersPage() {
          </div>
         );
 
-      case 'batch_notes':
-        // Notes input field
+      case 'order_notes':
+        // Notes input field with database saving
         return (
           <input
             type="text"
-            value={rowNotes[event.id] || ''}
-            onChange={(e) => setRowNotes(prev => ({ ...prev, [event.id]: e.target.value }))}
+            value={rowNotes[event.id] || event.order_notes || ''}
+            onChange={(e) => {
+              const newValue = e.target.value;
+              setRowNotes(prev => ({ ...prev, [event.id]: newValue }));
+              
+                             // Debounced save to database
+               const windowWithTimeouts = window as unknown as Window & { [key: string]: NodeJS.Timeout };
+               clearTimeout(windowWithTimeouts[`notesTimeout_${event.id}`]);
+               windowWithTimeouts[`notesTimeout_${event.id}`] = setTimeout(async () => {
+                 const payload = event.payload as { data?: { object?: { id?: string } }; payment_intent_id?: string };
+                 const stripePaymentId = payload?.data?.object?.id || 
+                                        payload?.payment_intent_id ||
+                                        event.transaction_id;
+                
+                if (stripePaymentId) {
+                  try {
+                    const result = await updateOrderNotes(stripePaymentId, newValue);
+                    if (!result.success) {
+                      console.error('Failed to save notes:', result.error);
+                    }
+                  } catch (error) {
+                    console.error('Error saving notes:', error);
+                  }
+                }
+              }, 1000); // Save after 1 second of no typing
+            }}
             placeholder="Write notes..."
             className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
           />
@@ -1164,7 +1210,7 @@ export default function OrdersPage() {
                         <div className="flex gap-1 mb-4">
                           <button
                             onClick={() => {
-                              const batchColumnsWithPrefix = batchColumns.map(col => `batch_${col}`);
+                              const batchColumnsWithPrefix = batchColumns.map(col => col === 'status' ? 'batch_status' : col);
                               setVisibleColumns(prev => [
                                 ...prev.filter(col => !batchColumnsWithPrefix.includes(col.name)),
                                 ...batchColumnsWithPrefix.map(columnName => ({
@@ -1180,7 +1226,7 @@ export default function OrdersPage() {
                           <span className="text-xs text-gray-400">|</span>
                           <button
                             onClick={() => {
-                              const batchColumnsWithPrefix = batchColumns.map(col => `batch_${col}`);
+                              const batchColumnsWithPrefix = batchColumns.map(col => col === 'status' ? 'batch_status' : col);
                               setVisibleColumns(prev => prev.filter(col => !batchColumnsWithPrefix.includes(col.name)));
                             }}
                             className="text-xs text-orange-600 hover:text-orange-800 hover:underline"
@@ -1190,7 +1236,7 @@ export default function OrdersPage() {
                         </div>
                         <div className="space-y-2">
                           {batchColumns.map((column) => {
-                            const prefixedColumn = `batch_${column}`;
+                            const prefixedColumn = column === 'status' ? 'batch_status' : column;
                             return (
                               <label key={prefixedColumn} className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-1 rounded">
                                 <input

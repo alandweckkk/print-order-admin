@@ -41,7 +41,7 @@ export async function syncNewOrders(): Promise<SyncResult> {
     const paymentIds = stripeEvents
       .map(event => {
         try {
-          const payload = event.payload as any;
+          const payload = event.payload as { data?: { object?: { id?: string } } };
           return payload?.data?.object?.id;
         } catch (e) {
           console.warn('Failed to parse payload for event:', e);

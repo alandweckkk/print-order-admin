@@ -143,6 +143,7 @@ export interface CombinedOrderEvent extends StripeCapturedEvent {
   mr_model_version: string | null;
   // Batch management fields
   batch_status: string | null;
+  order_notes: string | null;
 }
 
 export async function fetchStripeEventColumns(): Promise<string[]> {
@@ -473,7 +474,7 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
     let joinMatches = 0;
     let modelRunMatches = 0;
     let stripeMatches = 0;
-    const combinedData = managementRecords.map((managementRecord: { id: string; stripe_payment_id: string; status: string }) => {
+    const combinedData = managementRecords.map((managementRecord: { id: string; stripe_payment_id: string; status: string; order_notes: string }) => {
       const paymentIntentId = managementRecord.stripe_payment_id;
       
       // Find matching physical order (should exist for most records)
@@ -560,6 +561,7 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
         mr_model_version: matchingModelRun?.model_version || null,
         // Batch management fields - now reads from database
         batch_status: managementRecord.status || 'No Status',
+        order_notes: managementRecord.order_notes || null,
       };
     });
 
@@ -705,9 +707,9 @@ export async function analyzePhysicalMailOrderJoinGaps(): Promise<{
       .slice(0, 10)
       .map(event => ({
         stripe_id: event.stripe_id,
-        payment_intent_id: event.payment_intent_id,
-        created_timestamp_est: event.created_timestamp_est,
-        amount: event.amount
+        payment_intent_id: event.payment_intent_id || null,
+        created_timestamp_est: event.created_timestamp_est || null,
+        amount: event.amount || null
       }));
 
     const analysis = {
