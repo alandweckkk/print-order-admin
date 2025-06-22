@@ -1423,6 +1423,15 @@ export default function OrdersPage() {
                   <span className="ml-1 text-xs">({selectedItems.size}/2 min)</span>
                 )}
               </Button>
+              
+              <Button 
+                variant="outline"
+                size="sm"
+                disabled={true}
+                className="text-gray-400 border-gray-300 cursor-not-allowed opacity-50"
+              >
+                Download Addresses
+              </Button>
             </div>
             <div className="flex items-center gap-4">
               <div className="text-sm text-gray-500">

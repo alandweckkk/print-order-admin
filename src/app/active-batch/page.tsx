@@ -29,6 +29,7 @@ import { formatShippingAddressMultiLine, ShippingAddress } from '@/lib/data-tran
 import { fetchBatchesFromDatabase, DatabaseBatch } from './actions/fetch-batches';
 import { fetchBatchOrders, BatchOrder } from './actions/fetch-batch-orders';
 import { updateStickerSheetUrl } from './actions/update-sticker-sheet-url';
+import { removeOrderFromBatch } from './actions/remove-order-from-batch';
 
 // Note: This page is temporarily disabled while transitioning to database-based batches
 // TODO: Implement database-based batch loading to replace localStorage functionality
@@ -139,9 +140,9 @@ function EnvelopeCanvas({ shippingAddress, className = "", width = 350, height =
     {
       id: 'sender-address',
       text: 'MakeMeASticker\n125 Cervantes Blvd\nSan Francisco, CA 94123',
-      x: 45, // 20px padding + 25px margin
+      x: 30, // Top-left positioning
       y: 40,
-      fontSize: 11,
+      fontSize: 14,
       fontFamily: 'Arial',
       color: '#000000',
       fontWeight: 'normal',
@@ -154,8 +155,8 @@ function EnvelopeCanvas({ shippingAddress, className = "", width = 350, height =
       id: 'recipient-address',
       text: getShippingAddressText(),
       x: width / 2,
-      y: height / 2 - 10, // Slightly higher than center
-      fontSize: 14,
+      y: height / 2, // Center-center positioning
+      fontSize: 22,
       fontFamily: 'Arial',
       color: '#000000',
       fontWeight: 'bold', // Make it bold for better visibility
@@ -180,11 +181,6 @@ function EnvelopeCanvas({ shippingAddress, className = "", width = 350, height =
     // Draw white background
     ctx.fillStyle = '#ffffff'; // White background
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Draw border with 20px padding on left and right
-    ctx.strokeStyle = '#e5e7eb';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(20, 0, canvas.width - 40, canvas.height);
 
     // Draw text elements
     textElements.forEach(element => {
@@ -568,11 +564,37 @@ export default function ActiveBatchPage() {
     }
   }, [isMobile, viewMode]);
 
-  const handleRemoveOrder = (id: string) => {
-    setOrders(prev => prev.filter(order => order.id !== id));
-    // Adjust current index if needed for one-by-one view
-    if (viewMode === 'one-by-one' && currentOrderIndex >= orders.length - 1) {
-      setCurrentOrderIndex(Math.max(0, orders.length - 2));
+  const handleRemoveOrder = async (id: string) => {
+    // Find the order to get its stripe payment ID
+    const orderToRemove = orders.find(order => order.id === id);
+    if (!orderToRemove) {
+      console.error('Order not found:', id);
+      return;
+    }
+
+    try {
+      // Update database to set batch_id to "unbatched"
+      const result = await removeOrderFromBatch(orderToRemove.stripePaymentId);
+      
+      if (!result.success) {
+        console.error('Failed to remove order from batch:', result.error);
+        alert('Failed to remove order from batch. Please try again.');
+        return;
+      }
+
+      // Remove from local state after successful database update
+      setOrders(prev => prev.filter(order => order.id !== id));
+      
+      // Adjust current index if needed for one-by-one view
+      if (viewMode === 'one-by-one' && currentOrderIndex >= orders.length - 1) {
+        setCurrentOrderIndex(Math.max(0, orders.length - 2));
+      }
+
+      console.log(`✅ Order ${orderToRemove.orderNumber} removed from batch`);
+      
+    } catch (error) {
+      console.error('Error removing order:', error);
+      alert('An error occurred while removing the order. Please try again.');
     }
   };
 
@@ -757,6 +779,160 @@ export default function ActiveBatchPage() {
     }
   };
 
+  const handleDownloadEnvelopeImages = async () => {
+    if (!activeBatch || !orders || orders.length === 0) {
+      console.error('No active batch or orders found');
+      alert('No batch or envelopes to download');
+      return;
+    }
+
+    try {
+      const zip = new JSZip();
+      let successCount = 0;
+      let failCount = 0;
+
+      console.log(`Starting download of ${orders.length} envelope images...`);
+
+      for (let i = 0; i < orders.length; i++) {
+        const order = orders[i];
+        
+        try {
+          console.log(`Generating envelope ${i + 1}/${orders.length}: ${order.orderNumber}`);
+          
+                     // Create a temporary canvas to generate the envelope image (3x scale for high resolution)
+           const canvas = document.createElement('canvas');
+           canvas.width = 2100;  // 700 * 3
+           canvas.height = 1500; // 500 * 3
+           const ctx = canvas.getContext('2d');
+           
+           if (!ctx) {
+             throw new Error('Could not get canvas context');
+           }
+
+           // Clear canvas and draw white background
+           ctx.clearRect(0, 0, canvas.width, canvas.height);
+           ctx.fillStyle = '#ffffff';
+           ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+           // Helper function to get shipping address text
+           const getShippingAddressText = () => {
+             if (!order.shippingAddress) {
+               return 'No Address Available';
+             }
+             
+             if (typeof order.shippingAddress === 'string') {
+               return order.shippingAddress.split(',').map(line => line.trim()).join('\n');
+             }
+             
+             return formatShippingAddressMultiLine(order.shippingAddress).join('\n');
+           };
+
+           // Create text elements (3x scaled)
+           const textElements = [
+             {
+               text: 'MakeMeASticker\n125 Cervantes Blvd\nSan Francisco, CA 94123',
+               x: 90,    // 30 * 3
+               y: 120,   // 40 * 3
+               fontSize: 42, // 14 * 3
+               fontFamily: 'Arial',
+               color: '#000000',
+               fontWeight: 'normal',
+               fontStyle: 'normal',
+               textAlign: 'left'
+             },
+             {
+               text: getShippingAddressText(),
+               x: canvas.width / 2,  // 1050
+               y: canvas.height / 2, // 750
+               fontSize: 66, // 22 * 3
+               fontFamily: 'Arial',
+               color: '#000000',
+               fontWeight: 'bold',
+               fontStyle: 'normal',
+               textAlign: 'center'
+             }
+           ];
+
+          // Draw text elements
+          textElements.forEach(element => {
+            ctx.save();
+            
+            ctx.translate(element.x, element.y);
+            
+            const fontStyle = element.fontStyle === 'italic' ? 'italic ' : '';
+            const fontWeight = element.fontWeight === 'bold' ? 'bold ' : '';
+            ctx.font = `${fontStyle}${fontWeight}${element.fontSize}px ${element.fontFamily}`;
+            ctx.fillStyle = element.color;
+            ctx.textAlign = element.textAlign as CanvasTextAlign;
+            
+            const lines = element.text.split('\n');
+            const lineHeight = element.fontSize * 1.3;
+            
+            lines.forEach((line, index) => {
+              const yOffset = index * lineHeight;
+              ctx.fillText(line, 0, yOffset);
+            });
+
+            ctx.restore();
+          });
+
+          // Convert canvas to blob
+          const blob = await new Promise<Blob>((resolve, reject) => {
+            canvas.toBlob((blob) => {
+              if (blob) {
+                resolve(blob);
+              } else {
+                reject(new Error('Failed to create blob from canvas'));
+              }
+            }, 'image/png');
+          });
+          
+          const filename = `order-${order.orderNumber}_envelope.png`;
+          zip.file(filename, blob);
+          successCount++;
+          
+          console.log(`✅ Added ${filename} to zip`);
+          
+        } catch (error) {
+          console.error(`❌ Failed to generate envelope for order ${order.orderNumber}:`, error);
+          failCount++;
+        }
+      }
+
+      if (successCount === 0) {
+        alert('No envelope images could be generated.');
+        return;
+      }
+
+      console.log('Generating zip file...');
+      const zipBlob = await zip.generateAsync({
+        type: "blob",
+        streamFiles: true
+      });
+
+      const link = document.createElement('a');
+      link.href = window.URL.createObjectURL(zipBlob);
+      link.download = `${activeBatch.name}_envelopes.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      window.URL.revokeObjectURL(link.href);
+
+      console.log(`✅ Successfully downloaded ${successCount} envelope images in zip file`);
+      
+      if (failCount > 0) {
+        alert(`Download completed! ${successCount} envelope images downloaded successfully. ${failCount} envelopes failed to generate.`);
+      } else {
+        alert(`Successfully downloaded all ${successCount} envelope images!`);
+      }
+
+    } catch (error) {
+      console.error('❌ Error creating envelope zip download:', error);
+      alert('An error occurred while creating the envelope download. Please try again.');
+    }
+  };
+
   const nextOrder = useCallback(() => {
     setCurrentOrderIndex(prev => Math.min(prev + 1, orders.length - 1));
   }, [orders.length]);
@@ -916,7 +1092,18 @@ export default function ActiveBatchPage() {
                 className="bg-blue-600 hover:bg-blue-700"
               >
                 <Download className="h-4 w-4 mr-2" />
-                Download All Images
+                Download All Sticker Sheet Images
+              </Button>
+              
+              {/* Download Envelopes Button */}
+              <Button
+                onClick={handleDownloadEnvelopeImages}
+                disabled={!activeBatch || !orders || orders.length === 0}
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Download All Envelope Images
               </Button>
             </div>
           </div>

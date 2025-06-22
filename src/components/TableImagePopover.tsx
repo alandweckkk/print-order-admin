@@ -90,7 +90,7 @@ export function TableImagePopover({ imageUrl, alt = "Thumbnail" }: TableImagePop
       
       {showPopover && (
         <div
-          className="fixed z-50 bg-white rounded-lg shadow-xl border border-gray-200 p-2 transition-opacity duration-200 ease-in-out"
+          className="fixed z-50 bg-gray-100 rounded-lg shadow-xl border border-gray-200 p-2 transition-opacity duration-200 ease-in-out"
           style={{
             top: `${popoverPosition.top}px`,
             left: `${popoverPosition.left}px`,
