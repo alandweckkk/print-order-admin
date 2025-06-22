@@ -7,7 +7,7 @@ export interface DatabaseBatch {
   name: string;
   created_at: string;
   order_count: number;
-  order_ids: number[];
+  order_ids: string[]; // UUIDs
 }
 
 export async function fetchBatchesFromDatabase(): Promise<{ batches: DatabaseBatch[], error?: string }> {
@@ -44,7 +44,7 @@ export async function fetchBatchesFromDatabase(): Promise<{ batches: DatabaseBat
     // Convert to DatabaseBatch format
     const batches: DatabaseBatch[] = Object.entries(batchGroups).map(([batchId, records]) => {
       // Extract order IDs from the management records 
-      const orderIds = records.map(record => parseInt(record.id));
+      const orderIds = records.map(record => record.id); // Keep as UUID strings
       
       return {
         batch_id: batchId,

@@ -3,9 +3,10 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export interface BatchOrder {
-  id: number;
+  id: string; // UUID string
   stripe_payment_id: string;
   batch_id: string;
+  sticker_sheet_url?: string | null;
   // Order data from joined tables
   pmo_order_number?: string | null;
   pmo_email?: string | null;
@@ -90,9 +91,10 @@ export async function fetchBatchOrders(batchId: string): Promise<{ orders: Batch
       );
 
       return {
-        id: parseInt(managementRecord.id),
+        id: managementRecord.id, // Keep as string (UUID)
         stripe_payment_id: managementRecord.stripe_payment_id,
         batch_id: managementRecord.batch_id,
+        sticker_sheet_url: managementRecord.sticker_sheet_url || null,
         pmo_order_number: matchingOrder?.order_number || null,
         pmo_email: matchingOrder?.email || null,
         pmo_status: matchingOrder?.status || null,

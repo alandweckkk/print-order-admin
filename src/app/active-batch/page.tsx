@@ -28,6 +28,7 @@ import JSZip from 'jszip';
 import { formatShippingAddressMultiLine, ShippingAddress } from '@/lib/data-transformations';
 import { fetchBatchesFromDatabase, DatabaseBatch } from './actions/fetch-batches';
 import { fetchBatchOrders, BatchOrder } from './actions/fetch-batch-orders';
+import { updateStickerSheetUrl } from './actions/update-sticker-sheet-url';
 
 // Note: This page is temporarily disabled while transitioning to database-based batches
 // TODO: Implement database-based batch loading to replace localStorage functionality
@@ -37,14 +38,14 @@ interface Batch {
   batch_id: string;
   name: string;
   created_at: string;
-  order_ids: number[];
+  order_ids: string[]; // UUIDs
   order_data?: OrderData[]; // Store actual order data (optional for backward compatibility)
-  processed_images?: { [orderId: number]: string };
+  processed_images?: { [orderId: string]: string }; // UUID keys
 }
 
 // Order data interface for batch storage
 interface OrderData {
-  id: number;
+  id: string; // UUID
   mr_id?: string;
   order_number?: string;
   pmo_order_number?: string;
@@ -64,7 +65,8 @@ interface OrderData {
 
 // Order interface for typed state
 interface Order {
-  id: number;
+  id: string; // UUID string
+  stripePaymentId: string; // Business identifier
   modelRunId: string;
   orderNumber: string;
   userEmail: string;
@@ -80,7 +82,7 @@ type ViewMode = 'horizontal' | 'gallery' | 'one-by-one';
 
 interface OrderCardProps {
   order: Order;
-  onRemove: (id: number) => void;
+  onRemove: (id: string) => void;
   className?: string;
   size?: 'small' | 'medium' | 'large' | 'horizontal-large' | 'one-by-one-huge';
 }
@@ -512,14 +514,15 @@ export default function ActiveBatchPage() {
         // Convert BatchOrder to Order format
         const convertedOrders: Order[] = result.orders.map((batchOrder, index) => ({
           id: batchOrder.id,
+          stripePaymentId: batchOrder.stripe_payment_id,
           modelRunId: batchOrder.mr_id || `MR-${Date.now()}-${index}`,
           orderNumber: batchOrder.pmo_order_number || `ORD-${batchOrder.id}`,
           userEmail: batchOrder.pmo_email || `user${batchOrder.id}@example.com`,
-          stickerSheetUrl: batchOrder.mr_original_output_image_url || batchOrder.mr_output_image_url || "/api/placeholder/400/500",
+          stickerSheetUrl: batchOrder.sticker_sheet_url || batchOrder.mr_original_output_image_url || batchOrder.mr_output_image_url || "/api/placeholder/400/500",
           originalImageUrl: batchOrder.mr_original_output_image_url || batchOrder.mr_output_image_url || "/api/placeholder/400/500",
           envelopeUrl: "/api/placeholder/300/200",
           status: batchOrder.pmo_status === "shipped" ? "Printed" : "Ready",
-          isProcessed: false, // Will be updated when sticker sheets are created
+          isProcessed: !!batchOrder.sticker_sheet_url, // Mark as processed if sticker sheet URL exists
           shippingAddress: batchOrder.pmo_shipping_address
         }));
         
@@ -565,7 +568,7 @@ export default function ActiveBatchPage() {
     }
   }, [isMobile, viewMode]);
 
-  const handleRemoveOrder = (id: number) => {
+  const handleRemoveOrder = (id: string) => {
     setOrders(prev => prev.filter(order => order.id !== id));
     // Adjust current index if needed for one-by-one view
     if (viewMode === 'one-by-one' && currentOrderIndex >= orders.length - 1) {
@@ -618,6 +621,15 @@ export default function ActiveBatchPage() {
             if (result.success) {
               console.log(`✅ Created sticker sheet for order ${order.orderNumber}`);
               console.log(`🖼️ Sticker sheet image URL: ${result.outputImageUrl}`);
+              
+              // Save sticker sheet URL to database
+              const dbResult = await updateStickerSheetUrl(order.stripePaymentId, result.outputImageUrl);
+              if (dbResult.success) {
+                console.log(`💾 Saved sticker sheet URL to database for order ${order.orderNumber}`);
+              } else {
+                console.error(`❌ Failed to save sticker sheet URL to database for order ${order.orderNumber}:`, dbResult.error);
+              }
+              
               return {
                 ...order,
                 stickerSheetUrl: result.outputImageUrl,
