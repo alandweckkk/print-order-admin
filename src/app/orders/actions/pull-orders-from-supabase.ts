@@ -101,6 +101,8 @@ export interface StripeCapturedEvent {
 }
 
 export interface CombinedOrderEvent extends StripeCapturedEvent {
+  // Management record fields
+  stripe_payment_id: string | null;
   // Physical mail orders fields (prefixed to avoid conflicts)
   pmo_id: string | null;
   pmo_payment_intent_id: string | null;
@@ -519,6 +521,8 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
         model_run_id: matchingStripeEvent?.model_run_id || matchingOrder?.model_run_id || null,
         output_image_url: matchingStripeEvent?.output_image_url || matchingOrder?.output_image_url || null,
         credits: matchingStripeEvent?.credits || null,
+        // Management record fields
+        stripe_payment_id: managementRecord.stripe_payment_id || null,
         // Add prefixed physical mail order fields
         pmo_id: matchingOrder?.id || null,
         pmo_payment_intent_id: matchingOrder?.payment_intent_id || null,

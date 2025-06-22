@@ -1,7 +1,10 @@
 "use server";
 
+import { createAdminClient } from '@/lib/supabase/admin';
+
 interface CombinedOrderEvent {
   id: number;
+  stripe_payment_id?: string | null;
   mr_original_output_image_url?: string | null;
   mr_output_image_url?: string | null;
   pmo_order_number?: string | null;
@@ -10,41 +13,53 @@ interface CombinedOrderEvent {
   [key: string]: string | number | null | undefined;
 }
 
-export interface Batch {
-  batch_id: string;
-  name: string;
-  created_at: string;
-  order_ids: number[];
-  order_data: CombinedOrderEvent[];
-}
-
 export async function createBatch(
   selectedOrderData: CombinedOrderEvent[],
   batchName: string
-): Promise<{ success: boolean; batch?: Batch; error?: string }> {
+): Promise<{ success: boolean; updatedCount?: number; error?: string }> {
   console.log('🔥 SERVER ACTION CALLED! createBatch');
   console.log('🔥 Batch name:', batchName);
   console.log('🔥 Order count:', selectedOrderData?.length);
   
   try {
-    const batch_id = Date.now().toString();
+    const supabase = await createAdminClient();
     
-    console.log(`🚀 Creating batch: ${batchName} with ${selectedOrderData.length} orders`);
+    // Extract the stripe payment IDs from selected data
+    const stripePaymentIds = selectedOrderData
+      .map(order => order.stripe_payment_id)
+      .filter(id => id !== null && id !== undefined);
     
-    // Create batch without any image processing
-    const newBatch: Batch = {
-      batch_id,
-      name: batchName.trim(),
-      created_at: new Date().toISOString(),
-      order_ids: selectedOrderData.map(order => order.id),
-      order_data: selectedOrderData
-    };
+    if (stripePaymentIds.length === 0) {
+      return {
+        success: false,
+        error: 'No valid stripe payment IDs found in selected orders'
+      };
+    }
     
-    console.log(`✅ Created batch: ${newBatch.name} with ${newBatch.order_ids.length} orders`);
+    console.log(`🚀 Updating batch_id for stripe payment IDs: ${stripePaymentIds.join(', ')}`);
+    
+    // Update all selected orders with the batch_id in z_print_order_management table
+    const { data, error } = await supabase
+      .from('z_print_order_management')
+      .update({ batch_id: batchName.trim() })
+      .in('stripe_payment_id', stripePaymentIds)
+      .select('id, stripe_payment_id');
+    
+    if (error) {
+      console.error('❌ Supabase error updating batch_id:', error);
+      return {
+        success: false,
+        error: `Database error: ${error.message}`
+      };
+    }
+    
+    const updatedCount = data?.length || 0;
+    console.log(`✅ Successfully updated ${updatedCount} orders with batch_id: ${batchName}`);
+    console.log('Updated records:', data);
     
     return {
       success: true,
-      batch: newBatch
+      updatedCount
     };
     
   } catch (error) {

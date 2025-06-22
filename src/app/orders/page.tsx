@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 
 import { fetchPhysicalStripeEvents, fetchStripeEventColumns, fetchPhysicalMailOrderColumns, fetchModelRunsColumns, CombinedOrderEvent } from './actions/pull-orders-from-supabase';
 import { getCurrentAdminDefaults, saveCurrentAdminDefaults, ColumnConfig } from './actions/admin-profiles';
-import { createBatch, Batch } from './actions/create-batch';
+import { createBatch } from './actions/create-batch';
 import { updateOrderStatus } from './actions/update-order-status';
 import { updateOrderVisibility } from './actions/update-order-visibility';
 import { updateOrderNotes } from './actions/update-order-notes';
@@ -85,16 +85,16 @@ export default function OrdersPage() {
   ];
 
   // Batch management functions
-  const getBatches = (): Batch[] => {
-    if (typeof window === 'undefined') return [];
-    const stored = localStorage.getItem('print_order_batches');
-    return stored ? JSON.parse(stored) : [];
-  };
+  // const getBatches = (): Batch[] => {
+  //   if (typeof window === 'undefined') return [];
+  //   const stored = localStorage.getItem('print_order_batches');
+  //   return stored ? JSON.parse(stored) : [];
+  // };
 
-  const saveBatches = (batches: Batch[]) => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem('print_order_batches', JSON.stringify(batches));
-  };
+  // const saveBatches = (batches: Batch[]) => {
+  //   if (typeof window === 'undefined') return;
+  //   localStorage.setItem('print_order_batches', JSON.stringify(batches));
+  // };
 
   const handleCreateBatch = async () => {
     if (!batchName.trim()) return;
@@ -107,21 +107,17 @@ export default function OrdersPage() {
         .filter(event => selectedItems.has(event.id))
         .map(event => ({
           id: event.id,
+          stripe_payment_id: event.stripe_payment_id,
           original_output_image_url: event.mr_original_output_image_url,
           order_number: event.pmo_order_number,
           shipping_address: event.pmo_shipping_address
         }));
       
-      // Create batch without image processing
+      // Create batch by updating database records
       const result = await createBatch(selectedOrderData, batchName.trim());
       
-      if (result.success && result.batch) {
-        // Save to localStorage
-        const currentBatches = getBatches();
-        const updatedBatches = [...currentBatches, result.batch];
-        saveBatches(updatedBatches);
-
-        console.log('Batch created:', result.batch);
+      if (result.success && result.updatedCount) {
+        console.log(`Successfully updated ${result.updatedCount} orders with batch_id: ${batchName}`);
         
         // Reset state
         setSelectedItems(new Set());
@@ -129,13 +125,13 @@ export default function OrdersPage() {
         setShowBatchModal(false);
         
         // Show success message
-        setToastMessage(`Batch "${result.batch.name}" created with ${result.batch.order_ids.length} orders!`);
+        setToastMessage(`Batch "${batchName}" created with ${result.updatedCount} orders!`);
         setToastType('success');
         setShowToast(true);
         setTimeout(() => setShowToast(false), 3000);
       } else {
         console.error('Failed to create batch:', result.error);
-        setToastMessage('Failed to create batch');
+        setToastMessage(result.error || 'Failed to create batch');
         setToastType('error');
         setShowToast(true);
         setTimeout(() => setShowToast(false), 3000);
