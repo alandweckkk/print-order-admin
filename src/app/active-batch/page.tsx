@@ -448,24 +448,7 @@ export default function ActiveBatchPage() {
   const [processingProgress, setProcessingProgress] = useState({ current: 0, total: 0 });
 
   // Batch management functions
-  const loadBatches = () => {
-    if (typeof window === 'undefined') return;
-    const stored = localStorage.getItem('print_order_batches');
-    const loadedBatches = stored ? JSON.parse(stored) : [];
-    setBatches(loadedBatches);
-    
-    // Auto-select newest batch if available and none selected
-    if (loadedBatches.length > 0 && !selectedBatchId) {
-      // Sort batches by created_at in descending order (newest first)
-      const sortedBatches = [...loadedBatches].sort((a, b) => 
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-      // Use the newest batch directly since batches state hasn't updated yet
-      selectBatchDirectly(sortedBatches[0]);
-    }
-  };
-
-  const selectBatchDirectly = (batch: Batch) => {
+  const selectBatchDirectly = useCallback((batch: Batch) => {
     setSelectedBatchId(batch.batch_id);
     setActiveBatch(batch);
     setCurrentOrderIndex(0); // Reset to first order
@@ -495,9 +478,26 @@ export default function ActiveBatchPage() {
       // Fallback to empty orders if no data
       setOrders([]);
     }
-  };
+  }, []);
 
-  const selectBatch = (batchId: string) => {
+  const loadBatches = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const stored = localStorage.getItem('print_order_batches');
+    const loadedBatches = stored ? JSON.parse(stored) : [];
+    setBatches(loadedBatches);
+    
+    // Auto-select newest batch if available and none selected
+    if (loadedBatches.length > 0 && !selectedBatchId) {
+      // Sort batches by created_at in descending order (newest first)
+      const sortedBatches = [...loadedBatches].sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      // Use the newest batch directly since batches state hasn't updated yet
+      selectBatchDirectly(sortedBatches[0]);
+    }
+  }, [selectedBatchId, selectBatchDirectly]);
+
+  const selectBatch = useCallback((batchId: string) => {
     const batch = batches.find(b => b.batch_id === batchId);
     if (batch) {
       setSelectedBatchId(batchId);
@@ -536,7 +536,7 @@ export default function ActiveBatchPage() {
         setOrders([]);
       }
     }
-  };
+  }, [batches]);
 
   // Load batches on component mount
   useEffect(() => {

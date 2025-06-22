@@ -11,9 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
-import { fetchPhysicalStripeEvents, fetchStripeEventColumns, fetchPhysicalMailOrderColumns, fetchModelRunsColumns, CombinedOrderEvent } from './actions/pull-orders-from-supabase';
+import { fetchPhysicalStripeEvents, fetchStripeEventColumns, fetchPhysicalMailOrderColumns, fetchModelRunsColumns, CombinedOrderEvent, analyzePhysicalMailOrderJoinGaps } from './actions/pull-orders-from-supabase';
 import { getCurrentAdminDefaults, saveCurrentAdminDefaults, ColumnConfig } from './actions/admin-profiles';
 import { createBatch, Batch } from './actions/create-batch';
+import { updateOrderStatus } from './actions/update-order-status';
+import { updateOrderVisibility } from './actions/update-order-visibility';
 
 export default function OrdersPage() {
   const [events, setEvents] = useState<CombinedOrderEvent[]>([]);
@@ -30,7 +32,7 @@ export default function OrdersPage() {
   const [isSavingDefaults, setIsSavingDefaults] = useState(false);
   const [currentAdminName, setCurrentAdminName] = useState<string>('Joey');
   const popoverRef = useRef<HTMLDivElement>(null);
-  const eventsPerPage = 100;
+  const eventsPerPage = 50;
 
 
   // Add state for bulk selection
@@ -71,14 +73,14 @@ export default function OrdersPage() {
   const [selectedEventDetails, setSelectedEventDetails] = useState<CombinedOrderEvent | null>(null);
   const [selectedEventIndex, setSelectedEventIndex] = useState<number>(-1);
 
-  // Status options matching the Select action dropdown
+  // Status options matching the database values
   const statusOptions = [
-    { value: 'no-status', label: 'No Status' },
-    { value: 'approved-batchable', label: 'Approved Batchable' },
-    { value: 'contact-user', label: 'Contact User' },
-    { value: 'alan-review', label: 'Alan Review' },
-    { value: 'question', label: 'Question' },
-    { value: 'hide', label: 'Hide' }
+    { value: 'No Status', label: 'No Status' },
+    { value: 'Approved Batchable', label: 'Approved Batchable' },
+    { value: 'Contact User', label: 'Contact User' },
+    { value: 'Alan Review', label: 'Alan Review' },
+    { value: 'Question', label: 'Question' },
+    { value: 'Hide', label: 'Hide' }
   ];
 
   // Batch management functions
@@ -316,7 +318,9 @@ export default function OrdersPage() {
             // Model runs columns (with mr_ prefix)
             'mr_original_output_image_url',
             'mr_output_image_url',
-            'mr_input_image_url'
+            'mr_input_image_url',
+            // Batch management columns (now persistent)
+            'batch_status'
           ];
           defaultColumnConfigs = convertToColumnConfigs(fallbackColumns);
           console.log('⚠️ No admin defaults found, using fallback columns:', defaultColumnConfigs);
@@ -350,7 +354,8 @@ export default function OrdersPage() {
           'pmo_email',
           'mr_original_output_image_url',
           'mr_output_image_url',
-          'mr_input_image_url'
+          'mr_input_image_url',
+          'batch_status'
         ];
         const fallbackColumnConfigs = fallbackColumns.map(columnName => ({
           name: columnName,
@@ -660,19 +665,111 @@ export default function OrdersPage() {
     }
   };
 
-  // Batch status editing handlers
-  const handleStatusChange = (eventId: number, newStatus: string) => {
-    // TODO: Save to Supabase later
+  // Management status editing handlers
+  const handleStatusChange = async (eventId: number, newStatus: string) => {
     console.log(`Changing status for event ${eventId} to:`, newStatus);
     
-    // For now, just update the local state (this won't persist)
-    setEvents(prev => prev.map(event => 
-      event.id === eventId 
-        ? { ...event, batch_status: newStatus }
-        : event
-    ));
+    // Find the event to get the stripe payment ID
+    const event = events.find(e => e.id === eventId);
+    if (!event) {
+      console.error('Event not found');
+      return;
+    }
+
+    // Extract the stripe payment ID - this could be from different sources
+    const stripePaymentId = (event.payload as any)?.data?.object?.id || 
+                           (event.payload as any)?.payment_intent_id ||
+                           event.transaction_id;
+
+    if (!stripePaymentId) {
+      console.error('No stripe payment ID found for event');
+      return;
+    }
+
+    try {
+      // Update in database
+      const result = await updateOrderStatus(stripePaymentId, newStatus);
+      
+      if (result.success) {
+        // Update local state on success
+        setEvents(prev => prev.map(e => 
+          e.id === eventId 
+            ? { ...e, batch_status: newStatus }
+            : e
+        ));
+        
+        setToastMessage(`Status updated to "${newStatus}"`);
+        setToastType('success');
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 2000);
+      } else {
+        console.error('Failed to update status:', result.error);
+        setToastMessage(`Failed to update status: ${result.error}`);
+        setToastType('error');
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3000);
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+      setToastMessage('Error updating status');
+      setToastType('error');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    }
     
     setEditingStatus(null);
+  };
+
+  // Delete/hide order handler
+  const handleDeleteOrder = async (eventId: number) => {
+    console.log(`Hiding order with event ID: ${eventId}`);
+    
+    // Find the event to get the stripe payment ID
+    const event = events.find(e => e.id === eventId);
+    if (!event) {
+      console.error('Event not found');
+      return;
+    }
+
+    // Extract the stripe payment ID
+    const stripePaymentId = (event.payload as any)?.data?.object?.id || 
+                           (event.payload as any)?.payment_intent_id ||
+                           event.transaction_id;
+
+    if (!stripePaymentId) {
+      console.error('No stripe payment ID found for event');
+      return;
+    }
+
+    try {
+      // Update visibility in database
+      const result = await updateOrderVisibility(stripePaymentId, false);
+      
+      if (result.success) {
+        // Remove from local state (since it's now hidden)
+        setEvents(prev => prev.filter(e => e.id !== eventId));
+        
+        // Update total count
+        setTotalEvents(prev => prev - 1);
+        
+        setToastMessage('Order hidden successfully');
+        setToastType('success');
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 2000);
+      } else {
+        console.error('Failed to hide order:', result.error);
+        setToastMessage(`Failed to hide order: ${result.error}`);
+        setToastType('error');
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3000);
+      }
+    } catch (error) {
+      console.error('Error hiding order:', error);
+      setToastMessage('Error hiding order');
+      setToastType('error');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    }
   };
 
   const renderCellContent = (event: CombinedOrderEvent, columnName: string) => {
@@ -750,7 +847,7 @@ export default function OrdersPage() {
         return <span className="text-gray-400">-</span>;
       case 'batch_status':
         // Status dropdown
-        const currentStatus = value ? String(value) : 'no-status';
+        const currentStatus = value ? String(value) : 'No Status';
         const statusLabel = statusOptions.find(opt => opt.value === currentStatus)?.label || 'No Status';
         
         return (
@@ -762,12 +859,12 @@ export default function OrdersPage() {
               <SelectTrigger className="w-full h-8 text-xs">
               <SelectValue>
                                  <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
-                   currentStatus === 'approved-batchable' ? 'bg-green-500' :
-                   currentStatus === 'contact-user' ? 'bg-blue-500' :
-                   currentStatus === 'alan-review' ? 'bg-yellow-500' :
-                   currentStatus === 'question' ? 'bg-purple-500' :
-                   currentStatus === 'hide' ? 'bg-red-500' :
-                   currentStatus === 'no-status' ? 'bg-gray-300' :
+                   currentStatus === 'Approved Batchable' ? 'bg-green-500' :
+                   currentStatus === 'Contact User' ? 'bg-blue-500' :
+                   currentStatus === 'Alan Review' ? 'bg-yellow-500' :
+                   currentStatus === 'Question' ? 'bg-purple-500' :
+                   currentStatus === 'Hide' ? 'bg-red-500' :
+                   currentStatus === 'No Status' ? 'bg-gray-300' :
                    'bg-gray-300'
                  }`}></span>
                 {statusLabel}
@@ -778,12 +875,12 @@ export default function OrdersPage() {
                 <SelectItem key={option.value} value={option.value}>
                   <div className="flex items-center">
                                          <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
-                       option.value === 'approved-batchable' ? 'bg-green-500' :
-                       option.value === 'contact-user' ? 'bg-blue-500' :
-                       option.value === 'alan-review' ? 'bg-yellow-500' :
-                       option.value === 'question' ? 'bg-purple-500' :
-                       option.value === 'hide' ? 'bg-red-500' :
-                       option.value === 'no-status' ? 'bg-gray-300' :
+                       option.value === 'Approved Batchable' ? 'bg-green-500' :
+                       option.value === 'Contact User' ? 'bg-blue-500' :
+                       option.value === 'Alan Review' ? 'bg-yellow-500' :
+                       option.value === 'Question' ? 'bg-purple-500' :
+                       option.value === 'Hide' ? 'bg-red-500' :
+                       option.value === 'No Status' ? 'bg-gray-300' :
                        'bg-gray-300'
                      }`}></span>
                     {option.label}
@@ -1124,11 +1221,11 @@ export default function OrdersPage() {
                   <SelectValue placeholder="Select action..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="approved-batchable">Approved Batachable</SelectItem>
-                  <SelectItem value="contact-user">Contact User</SelectItem>
-                  <SelectItem value="alan-review">Alan Review</SelectItem>
-                  <SelectItem value="question">Question</SelectItem>
-                  <SelectItem value="hide">Hide</SelectItem>
+                  <SelectItem value="Approved Batchable">Approved Batchable</SelectItem>
+                  <SelectItem value="Contact User">Contact User</SelectItem>
+                  <SelectItem value="Alan Review">Alan Review</SelectItem>
+                  <SelectItem value="Question">Question</SelectItem>
+                  <SelectItem value="Hide">Hide</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -1317,6 +1414,7 @@ export default function OrdersPage() {
                         </th>
                       ))}
                       <th className="text-left p-3 font-medium text-xs whitespace-nowrap overflow-hidden text-ellipsis" style={{ width: '80px', fontSize: '8px' }}>Actions</th>
+                      <th className="text-center p-3 font-medium text-xs whitespace-nowrap text-red-600" style={{ width: '60px', fontSize: '8px' }}>Delete</th>
                       <th className="text-center p-3 font-medium text-xs whitespace-nowrap" style={{ width: '60px', fontSize: '8px' }}>Send</th>
                     </tr>
                   </thead>
@@ -1353,6 +1451,17 @@ export default function OrdersPage() {
                           >
                             View Details
                           </Button>
+                        </td>
+                        <td className="text-center p-3 align-middle" style={{ width: '60px' }}>
+                          <button
+                            onClick={() => handleDeleteOrder(event.id)}
+                            className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                            title="Hide this order"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
                         </td>
                         <td className="text-center p-3 align-middle" style={{ width: '60px' }}>
                           <svg 

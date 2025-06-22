@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Settings, Layout, Mail, Tag, Users, Plus, Trash2, Check } from "lucide-react";
 import { getAllAdminProfiles, createAdminProfile, deleteAdminProfile } from "@/app/orders/actions/admin-profiles";
+import { syncNewOrders } from "@/app/orders/actions/sync-new-orders";
 import Notes from "@/components/Notes";
 
 interface MenuItem {
@@ -30,6 +31,8 @@ export default function Navigation() {
   const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newProfileKey, setNewProfileKey] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -156,6 +159,35 @@ export default function Navigation() {
     }
   };
 
+  const handleSyncNewOrders = async () => {
+    setIsSyncing(true);
+    setSyncMessage(null);
+    
+    try {
+      const result = await syncNewOrders();
+      
+      if (result.success) {
+        if (result.newRecords > 0) {
+          setSyncMessage(`✅ Successfully synced ${result.newRecords} new orders`);
+        } else {
+          setSyncMessage(`✅ All orders are up to date (${result.totalChecked} checked)`);
+        }
+      } else {
+        setSyncMessage(`❌ Sync failed: ${result.error}`);
+      }
+      
+      // Clear message after 5 seconds
+      setTimeout(() => setSyncMessage(null), 5000);
+      
+    } catch (error) {
+      console.error("Error syncing orders:", error);
+      setSyncMessage("❌ Unexpected error during sync");
+      setTimeout(() => setSyncMessage(null), 5000);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const getActiveProfile = () => {
     return adminProfiles.find(profile => profile.isActive);
   };
@@ -227,6 +259,22 @@ export default function Navigation() {
           >
             Active Batch
           </Button>
+          <Button 
+            variant="outline"
+            size="lg"
+            className="border-gray-300 text-gray-700 hover:bg-gray-50 relative"
+            onClick={handleSyncNewOrders}
+            disabled={isSyncing}
+          >
+            {isSyncing ? "Syncing..." : "Sync New Orders"}
+          </Button>
+          
+          {/* Sync Status Message */}
+          {syncMessage && (
+            <div className="absolute top-full left-0 mt-2 px-3 py-2 bg-white border border-gray-200 rounded-md shadow-lg text-sm whitespace-nowrap z-50">
+              {syncMessage}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-4 relative">
           {/* Notes Button */}

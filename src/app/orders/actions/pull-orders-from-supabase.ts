@@ -335,12 +335,12 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
     const supabase = await createAdminClient();
     console.log('Admin client created successfully');
     
-    // First get total count
-    console.log('Getting total count of stripe_captured_events...');
+    // First get total count from z_print_order_management (only visible records)
+    console.log('Getting total count of z_print_order_management (visible only)...');
     const { count: totalCount, error: countError } = await supabase
-      .from('stripe_captured_events')
+      .from('z_print_order_management')
       .select('*', { count: 'exact', head: true })
-      .eq('amount', '7.99');
+      .eq('visible', true);
 
     if (countError) {
       console.error('COUNT ERROR:', countError);
@@ -350,41 +350,37 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
     // Calculate offset
     const offset = (page - 1) * limit;
     
-    // Get paginated stripe events
-    console.log(`Fetching stripe_captured_events... offset: ${offset}, limit: ${limit}`);
-    const { data: stripeEvents, error: stripeError } = await supabase
-      .from('stripe_captured_events')
+    // Get paginated records from z_print_order_management (only visible records)
+    console.log(`Fetching z_print_order_management (visible only)... offset: ${offset}, limit: ${limit}`);
+    const { data: managementRecords, error: managementError } = await supabase
+      .from('z_print_order_management')
       .select('*')
-      .eq('amount', '7.99')
-      .order('created_timestamp_est', { ascending: false })
+      .eq('visible', true)
+      .order('id', { ascending: false })
       .range(offset, offset + limit - 1);
 
-    console.log('Stripe query result:', { 
-      data: stripeEvents?.length, 
-      error: stripeError,
-      firstRecord: stripeEvents?.[0] ? 'EXISTS' : 'NONE'
+    console.log('Management records query result:', { 
+      data: managementRecords?.length, 
+      error: managementError,
+      firstRecord: managementRecords?.[0] ? 'EXISTS' : 'NONE'
     });
 
-    if (stripeError) {
-      console.error('STRIPE EVENTS ERROR:', stripeError);
+    if (managementError) {
+      console.error('MANAGEMENT RECORDS ERROR:', managementError);
       return { events: [], total: 0 };
     }
 
-    if (!stripeEvents || stripeEvents.length === 0) {
-      console.error('NO STRIPE EVENTS FOUND - returning empty array');
+    if (!managementRecords || managementRecords.length === 0) {
+      console.error('NO MANAGEMENT RECORDS FOUND - returning empty array');
       return { events: [], total: totalCount || 0 };
     }
 
-    // Extract unique payment intent IDs and model run IDs from current page
-    const paymentIntentIds = stripeEvents
-      .map(event => (event.payload as StripePayload)?.data?.object?.id || (event.payload as StripePayload)?.payment_intent_id)
-      .filter(Boolean);
-    
-    const modelRunIds = stripeEvents
-      .map(event => event.model_run_id)
+    // Extract unique payment intent IDs from z_print_order_management
+    const paymentIntentIds = managementRecords
+      .map(record => record.stripe_payment_id)
       .filter(Boolean);
 
-    // Get only the physical mail orders that match current page's payment intents
+    // Get physical mail orders that match the payment intent IDs
     console.log('Fetching physical_mail_orders for current page...');
     const { data: physicalOrders, error: physicalError } = await supabase
       .from('physical_mail_orders')
@@ -399,10 +395,15 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
 
     if (physicalError) {
       console.error('PHYSICAL ORDERS ERROR:', physicalError);
-      // Continue anyway - we can still show stripe data without physical order data
+      // Continue anyway - we can still show management data without physical order data
     }
 
-    // Get only the model runs that match current page's model run IDs
+    // Extract model run IDs from physical orders for additional data
+    const modelRunIds = physicalOrders
+      ?.map(order => order.model_run_id)
+      .filter(Boolean) || [];
+
+    // Get model runs that match the model run IDs from physical orders
     console.log('Fetching model_runs for current page...');
     const { data: modelRuns, error: modelRunsError } = await supabase
       .from('model_runs')
@@ -417,20 +418,47 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
 
     if (modelRunsError) {
       console.error('MODEL RUNS ERROR:', modelRunsError);
-      // Continue anyway - we can still show stripe data without model runs data
+      // Continue anyway - we can still show order data without model runs data
+    }
+
+    // Get corresponding stripe events for additional metadata (optional)
+    // Note: This is a complex query since we need to match against nested JSON
+    console.log('Fetching stripe_captured_events for current page...');
+    const { data: allStripeEvents, error: allStripeError } = await supabase
+      .from('stripe_captured_events')
+      .select('*')
+      .eq('amount', 7.99);
+
+    // Filter stripe events that match our payment intent IDs
+    const stripeEvents = allStripeEvents?.filter(event => {
+      const eventPaymentIntentId = (event.payload as StripePayload)?.data?.object?.id || (event.payload as StripePayload)?.payment_intent_id;
+      return paymentIntentIds.includes(eventPaymentIntentId);
+    }) || [];
+
+    const stripeError = allStripeError;
+
+    console.log('Stripe events query result:', { 
+      data: stripeEvents?.length, 
+      error: stripeError,
+      firstRecord: stripeEvents?.[0] ? 'EXISTS' : 'NONE'
+    });
+
+    if (stripeError) {
+      console.error('STRIPE EVENTS ERROR:', stripeError);
+      // Continue anyway - we can still show order data without stripe event metadata
     }
 
     console.log('=== DATA SUMMARY ===');
-    console.log('Stripe events found:', stripeEvents?.length);
+    console.log('Management records found:', managementRecords?.length);
     console.log('Physical orders found:', physicalOrders?.length);
     console.log('Model runs found:', modelRuns?.length);
+    console.log('Stripe events found:', stripeEvents?.length);
 
     // Sample first few payment_intent_ids for debugging
-    if (stripeEvents?.length > 0) {
-      console.log('Sample stripe payloads (first 3):');
-      stripeEvents.slice(0, 3).forEach((event, i) => {
-        const paymentIntentId = (event.payload as StripePayload)?.payment_intent_id || (event.payload as StripePayload)?.data?.object?.payment_intent;
-        console.log(`  ${i + 1}: payment_intent_id =`, paymentIntentId);
+    if (managementRecords?.length > 0) {
+      console.log('Sample management records (first 3):');
+      managementRecords.slice(0, 3).forEach((record, i) => {
+        console.log(`  ${i + 1}: stripe_payment_id =`, record.stripe_payment_id);
       });
     }
 
@@ -441,14 +469,14 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
       });
     }
 
-    // Combine the data by matching payment_intent_id from stripe payload
+    // Combine the data by matching payment_intent_id from management records
     let joinMatches = 0;
     let modelRunMatches = 0;
-    const combinedData = stripeEvents.map((stripe: StripeCapturedEvent) => {
-      // Extract payment_intent_id from stripe payload - the ID is nested in data.object.id
-      const paymentIntentId = (stripe.payload as StripePayload)?.data?.object?.id || (stripe.payload as StripePayload)?.payment_intent_id;
+    let stripeMatches = 0;
+    const combinedData = managementRecords.map((managementRecord: { id: string; stripe_payment_id: string; status: string }) => {
+      const paymentIntentId = managementRecord.stripe_payment_id;
       
-      // Find matching physical order (optional - not all stripe events have physical orders)
+      // Find matching physical order (should exist for most records)
       const matchingOrder = physicalOrders?.find((order: { payment_intent_id: string }) => 
         order.payment_intent_id === paymentIntentId
       );
@@ -457,17 +485,39 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
         joinMatches++;
       }
 
-      // Find matching model run by model_run_id from stripe event
+      // Find matching model run by model_run_id from physical order
       const matchingModelRun = modelRuns?.find((run: { id: string }) => 
-        run.id === stripe.model_run_id
+        run.id === matchingOrder?.model_run_id
       );
 
       if (matchingModelRun) {
         modelRunMatches++;
       }
 
+      // Find matching stripe event for additional metadata (optional)
+      const matchingStripeEvent = stripeEvents?.find((event: StripeCapturedEvent) => {
+        const stripePaymentIntentId = (event.payload as StripePayload)?.data?.object?.id || (event.payload as StripePayload)?.payment_intent_id;
+        return stripePaymentIntentId === paymentIntentId;
+      });
+
+      if (matchingStripeEvent) {
+        stripeMatches++;
+      }
+
       return {
-        ...stripe,
+        // Use stripe event data if available, otherwise create minimal structure
+        id: matchingStripeEvent?.id || 0,
+        payload: matchingStripeEvent?.payload || {},
+        transaction_id: matchingStripeEvent?.transaction_id || null,
+        amount: matchingStripeEvent?.amount || 7.99,
+        created_timestamp: matchingStripeEvent?.created_timestamp || null,
+        created_timestamp_est: matchingStripeEvent?.created_timestamp_est || matchingOrder?.created_at || null,
+        payment_source: matchingStripeEvent?.payment_source || 'physical_mail',
+        user_id: matchingStripeEvent?.user_id || matchingOrder?.user_id || null,
+        pack_type: matchingStripeEvent?.pack_type || 'physical',
+        model_run_id: matchingStripeEvent?.model_run_id || matchingOrder?.model_run_id || null,
+        output_image_url: matchingStripeEvent?.output_image_url || matchingOrder?.output_image_url || null,
+        credits: matchingStripeEvent?.credits || null,
         // Add prefixed physical mail order fields
         pmo_id: matchingOrder?.id || null,
         pmo_payment_intent_id: matchingOrder?.payment_intent_id || null,
@@ -508,31 +558,33 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
         mr_output_images: matchingModelRun?.output_images || null,
         mr_credits_used: matchingModelRun?.credits_used || null,
         mr_model_version: matchingModelRun?.model_version || null,
-        // Batch management fields - initialized as null, managed client-side for now
-        batch_status: null,
+        // Batch management fields - now reads from database
+        batch_status: managementRecord.status || 'No Status',
       };
     });
 
     console.log('=== FINAL RESULT ===');
     console.log('Combined records created:', combinedData?.length);
-    console.log('Join matches found:', joinMatches, 'out of', stripeEvents.length, 'stripe events');
-    console.log('Model run matches found:', modelRunMatches, 'out of', stripeEvents.length, 'stripe events');
+    console.log('Physical order matches found:', joinMatches, 'out of', managementRecords.length, 'management records');
+    console.log('Model run matches found:', modelRunMatches, 'out of', managementRecords.length, 'management records');
+    console.log('Stripe event matches found:', stripeMatches, 'out of', managementRecords.length, 'management records');
     
     // Debug: Log first 10 records to see what data we have
     console.log('=== FIRST 10 RECORDS (SAMPLE) ===');
     combinedData.slice(0, 10).forEach((record, index) => {
       console.log(`\nRecord ${index + 1}:`);
-      console.log('Stripe Event ID:', record.id);
-      console.log('Model Run ID (stripe):', record.model_run_id);
+      console.log('Management Record Payment ID:', paymentIntentIds[index]);
+      console.log('Physical Order ID:', record.pmo_id);
+      console.log('Model Run ID:', record.model_run_id);
       console.log('Model Run Data (mr_id):', record.mr_id);
       console.log('Output Image URLs:');
       console.log('  - stripe output_image_url:', record.output_image_url);
       console.log('  - pmo_output_image_url:', record.pmo_output_image_url);
       console.log('  - mr_output_image_url:', record.mr_output_image_url);
-      console.log('Other mr_ fields sample:');
-      console.log('  - mr_status:', record.mr_status);
-      console.log('  - mr_model_name:', record.mr_model_name);
-      console.log('  - mr_created_at:', record.mr_created_at);
+      console.log('Order details:');
+      console.log('  - pmo_status:', record.pmo_status);
+      console.log('  - pmo_tracking_number:', record.pmo_tracking_number);
+      console.log('  - pmo_order_number:', record.pmo_order_number);
     });
     
     console.log('Returning data to UI...');
@@ -544,6 +596,140 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
     console.error('=== CRITICAL ERROR ===');
     console.error('Error fetching stripe events:', error);
     return { events: [], total: 0 };
+  }
+}
+
+/**
+ * Analyze missing physical mail order records after primary Stripe filter
+ * Returns detailed analysis of join gaps between stripe_captured_events and physical_mail_orders
+ */
+export async function analyzePhysicalMailOrderJoinGaps(): Promise<{
+  success: boolean;
+  analysis?: {
+    totalStripeEvents: number;
+    eventsWithPhysicalOrders: number;
+    eventsWithoutPhysicalOrders: number;
+    missingPercentage: number;
+    sampleMissingEvents: Array<{
+      stripe_id: number;
+      payment_intent_id: string | null;
+      created_timestamp_est: string | null;
+      amount: number | null;
+    }>;
+  };
+  error?: string;
+}> {
+  "use server";
+  
+  try {
+    console.log('=== ANALYZING PHYSICAL MAIL ORDER JOIN GAPS ===');
+    const supabase = await createAdminClient();
+    
+    // Step 1: Get all Stripe events with amount = 7.99 (primary filter)
+    console.log('Step 1: Fetching all Stripe events with amount = 7.99...');
+    const { data: stripeEvents, error: stripeError } = await supabase
+      .from('stripe_captured_events')
+      .select('id, payload, amount, created_timestamp_est')
+      .eq('amount', '7.99')
+      .order('created_timestamp_est', { ascending: false });
+
+    if (stripeError) {
+      console.error('Error fetching Stripe events:', stripeError);
+      return { success: false, error: stripeError.message };
+    }
+
+    if (!stripeEvents || stripeEvents.length === 0) {
+      return { 
+        success: true, 
+        analysis: {
+          totalStripeEvents: 0,
+          eventsWithPhysicalOrders: 0,
+          eventsWithoutPhysicalOrders: 0,
+          missingPercentage: 0,
+          sampleMissingEvents: []
+        }
+      };
+    }
+
+    console.log(`Found ${stripeEvents.length} Stripe events with amount = 7.99`);
+
+    // Step 2: Extract payment intent IDs from Stripe events
+    console.log('Step 2: Extracting payment intent IDs from Stripe payloads...');
+    const stripeEventsWithPaymentIntents = stripeEvents.map(event => {
+      const paymentIntentId = (event.payload as StripePayload)?.data?.object?.id || 
+                             (event.payload as StripePayload)?.payment_intent_id;
+      return {
+        stripe_id: event.id,
+        payment_intent_id: paymentIntentId,
+        created_timestamp_est: event.created_timestamp_est,
+        amount: event.amount
+      };
+    }).filter(event => event.payment_intent_id); // Only events with valid payment intent IDs
+
+    const allPaymentIntentIds = stripeEventsWithPaymentIntents.map(e => e.payment_intent_id);
+    console.log(`Extracted ${allPaymentIntentIds.length} valid payment intent IDs`);
+
+    // Step 3: Fetch all matching physical mail orders
+    console.log('Step 3: Fetching physical mail orders for all payment intent IDs...');
+    const { data: physicalOrders, error: physicalError } = await supabase
+      .from('physical_mail_orders')
+      .select('payment_intent_id')
+      .in('payment_intent_id', allPaymentIntentIds);
+
+    if (physicalError) {
+      console.error('Error fetching physical mail orders:', physicalError);
+      return { success: false, error: physicalError.message };
+    }
+
+    console.log(`Found ${physicalOrders?.length || 0} matching physical mail orders`);
+
+    // Step 4: Analyze the gaps
+    const physicalOrderPaymentIntents = new Set(
+      physicalOrders?.map(order => order.payment_intent_id) || []
+    );
+
+    const eventsWithPhysicalOrders = stripeEventsWithPaymentIntents.filter(
+      event => physicalOrderPaymentIntents.has(event.payment_intent_id)
+    );
+
+    const eventsWithoutPhysicalOrders = stripeEventsWithPaymentIntents.filter(
+      event => !physicalOrderPaymentIntents.has(event.payment_intent_id)
+    );
+
+    const missingPercentage = stripeEventsWithPaymentIntents.length > 0 
+      ? (eventsWithoutPhysicalOrders.length / stripeEventsWithPaymentIntents.length) * 100 
+      : 0;
+
+    // Get sample of missing events (first 10)
+    const sampleMissingEvents = eventsWithoutPhysicalOrders
+      .slice(0, 10)
+      .map(event => ({
+        stripe_id: event.stripe_id,
+        payment_intent_id: event.payment_intent_id,
+        created_timestamp_est: event.created_timestamp_est,
+        amount: event.amount
+      }));
+
+    const analysis = {
+      totalStripeEvents: stripeEventsWithPaymentIntents.length,
+      eventsWithPhysicalOrders: eventsWithPhysicalOrders.length,
+      eventsWithoutPhysicalOrders: eventsWithoutPhysicalOrders.length,
+      missingPercentage: Math.round(missingPercentage * 100) / 100,
+      sampleMissingEvents
+    };
+
+    console.log('=== JOIN GAP ANALYSIS RESULTS ===');
+    console.log(`Total Stripe events (with payment intent IDs): ${analysis.totalStripeEvents}`);
+    console.log(`Events WITH physical orders: ${analysis.eventsWithPhysicalOrders}`);
+    console.log(`Events WITHOUT physical orders: ${analysis.eventsWithoutPhysicalOrders}`);
+    console.log(`Missing percentage: ${analysis.missingPercentage}%`);
+    console.log(`Sample missing events:`, sampleMissingEvents);
+
+    return { success: true, analysis };
+
+  } catch (error) {
+    console.error('Error analyzing physical mail order join gaps:', error);
+    return { success: false, error: 'Failed to analyze join gaps' };
   }
 }
 
