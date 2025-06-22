@@ -27,39 +27,39 @@ import { useRouter } from 'next/navigation';
 import JSZip from 'jszip';
 import { formatShippingAddressMultiLine, ShippingAddress } from '@/lib/data-transformations';
 import { fetchBatchesFromDatabase, DatabaseBatch } from './actions/fetch-batches';
-import { fetchBatchOrders, BatchOrder } from './actions/fetch-batch-orders';
+import { fetchBatchOrders } from './actions/fetch-batch-orders';
 import { updateStickerSheetUrl } from './actions/update-sticker-sheet-url';
 import { removeOrderFromBatch } from './actions/remove-order-from-batch';
 
 // Note: This page is temporarily disabled while transitioning to database-based batches
 // TODO: Implement database-based batch loading to replace localStorage functionality
 
-// Batch interface  
-interface Batch {
-  batch_id: string;
-  name: string;
-  created_at: string;
-  order_ids: string[]; // UUIDs
-  order_data?: OrderData[]; // Store actual order data (optional for backward compatibility)
-  processed_images?: { [orderId: string]: string }; // UUID keys
-}
+// Legacy batch interface (kept for backward compatibility but not currently used)
+// interface Batch {
+//   batch_id: string;
+//   name: string;
+//   created_at: string;
+//   order_ids: string[]; // UUIDs
+//   order_data?: OrderData[]; // Store actual order data (optional for backward compatibility)
+//   processed_images?: { [orderId: string]: string }; // UUID keys
+// }
 
-// Order data interface for batch storage
-interface OrderData {
-  id: string; // UUID
-  mr_id?: string;
-  order_number?: string;
-  pmo_order_number?: string;
-  pmo_email?: string;
-  user_id?: string;
-  original_output_image_url?: string;
-  mr_original_output_image_url?: string;
-  mr_output_image_url?: string;
-  output_image_url?: string;
-  pmo_status?: string;
-  shipping_address?: ShippingAddress;
-  pmo_shipping_address?: string;
-}
+// Legacy order data interface (kept for backward compatibility but not currently used)  
+// interface OrderData {
+//   id: string; // UUID
+//   mr_id?: string;
+//   order_number?: string;
+//   pmo_order_number?: string;
+//   pmo_email?: string;
+//   user_id?: string;
+//   original_output_image_url?: string;
+//   mr_original_output_image_url?: string;
+//   mr_output_image_url?: string;
+//   output_image_url?: string;
+//   pmo_status?: string;
+//   shipping_address?: ShippingAddress;
+//   pmo_shipping_address?: string;
+// }
 
 // Shipping address interface
 

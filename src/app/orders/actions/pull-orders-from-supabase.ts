@@ -478,7 +478,16 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
     let joinMatches = 0;
     let modelRunMatches = 0;
     let stripeMatches = 0;
-    const combinedData = managementRecords.map((managementRecord: { id: string; stripe_payment_id: string; status: string; order_notes: string }) => {
+    const combinedData = managementRecords.map((managementRecord: { 
+      id: string; 
+      stripe_payment_id: string; 
+      status: string; 
+      order_notes: string;
+      batch_id: string | null;
+      sticker_sheet_url: string | null;
+      visible: boolean;
+      [key: string]: unknown;
+    }) => {
       const paymentIntentId = managementRecord.stripe_payment_id;
       
       // Find matching physical order (should exist for most records)

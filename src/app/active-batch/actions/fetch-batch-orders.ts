@@ -61,7 +61,12 @@ export async function fetchBatchOrders(batchId: string): Promise<{ orders: Batch
       ?.map(order => order.model_run_id)
       .filter(Boolean) || [];
 
-    let modelRuns: any[] = [];
+    let modelRuns: Array<{
+      id: string;
+      original_output_image_url?: string[];
+      output_image_url?: string[];
+      [key: string]: unknown;
+    }> = [];
     if (modelRunIds.length > 0) {
       const { data: modelRunsData, error: modelRunsError } = await supabase
         .from('model_runs')
