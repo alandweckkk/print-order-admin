@@ -10,6 +10,7 @@ import { EditableField } from "@/components/ui/editable-field";
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 import { fetchPhysicalStripeEvents, fetchStripeEventColumns, fetchPhysicalMailOrderColumns, fetchModelRunsColumns, CombinedOrderEvent } from './actions/pull-orders-from-supabase';
@@ -22,6 +23,8 @@ import { updateBatchId } from './actions/update-batch-id';
 import { updatePhysicalMailOrder } from './actions/update-physical-mail-order';
 import { updateModelRun } from './actions/update-model-run';
 import { updateStripeEvent } from './actions/update-stripe-event';
+import { updateShippingAddress } from '../active-batch/actions/update-shipping-address';
+import { ShippingAddress } from '@/lib/data-transformations';
 
 export default function OrdersPage() {
   const [events, setEvents] = useState<CombinedOrderEvent[]>([]);
@@ -92,6 +95,19 @@ export default function OrdersPage() {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedEventDetails, setSelectedEventDetails] = useState<CombinedOrderEvent | null>(null);
   const [selectedEventIndex, setSelectedEventIndex] = useState<number>(-1);
+
+  // Add shipping address editing state
+  const [editingShippingAddress, setEditingShippingAddress] = useState(false);
+  const [isSavingAddress, setIsSavingAddress] = useState(false);
+  const [addressFormData, setAddressFormData] = useState<ShippingAddress>({
+    name: '',
+    line1: '',
+    line2: '',
+    city: '',
+    state: '',
+    postal_code: '',
+    country: 'US'
+  });
 
   // Status options matching the database values
   const statusOptions = [
@@ -479,16 +495,22 @@ export default function OrdersPage() {
         setEditingField(null);
         setIsSavingField(false);
       }
+
+      // Cancel address editing when clicking outside modal
+      if (editingShippingAddress && !showDetailsModal) {
+        setEditingShippingAddress(false);
+        setIsSavingAddress(false);
+      }
     };
 
-    if (showColumnPopover || editingStatus !== null || showWidthPopover !== null || editingField !== null) {
+    if (showColumnPopover || editingStatus !== null || showWidthPopover !== null || editingField !== null || editingShippingAddress) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showColumnPopover, editingStatus, showWidthPopover, editingField, showDetailsModal]);
+  }, [showColumnPopover, editingStatus, showWidthPopover, editingField, showDetailsModal, editingShippingAddress]);
 
   const formatCurrency = (amount: number | null) => {
     if (!amount) return '-';
@@ -713,6 +735,9 @@ export default function OrdersPage() {
       const updatedEvent = events.find(e => e.id === filteredData[newIndex].id) || filteredData[newIndex];
       setSelectedEventDetails(updatedEvent);
       setSelectedEventIndex(newIndex);
+      // Cancel any current address editing when navigating
+      setEditingShippingAddress(false);
+      setIsSavingAddress(false);
     }
   };
 
@@ -723,6 +748,152 @@ export default function OrdersPage() {
       const updatedEvent = events.find(e => e.id === filteredData[newIndex].id) || filteredData[newIndex];
       setSelectedEventDetails(updatedEvent);
       setSelectedEventIndex(newIndex);
+      // Cancel any current address editing when navigating
+      setEditingShippingAddress(false);
+      setIsSavingAddress(false);
+    }
+  };
+
+  // Address editing helper functions
+  const parseShippingAddress = (addressData: any): ShippingAddress => {
+    if (!addressData) {
+      return {
+        name: '',
+        line1: '',
+        line2: '',
+        city: '',
+        state: '',
+        postal_code: '',
+        country: 'US'
+      };
+    }
+
+    // If it's already a structured object
+    if (typeof addressData === 'object') {
+      return {
+        name: addressData.name || '',
+        line1: addressData.line1 || '',
+        line2: addressData.line2 || '',
+        city: addressData.city || '',
+        state: addressData.state || '',
+        postal_code: addressData.postal_code || '',
+        country: addressData.country || 'US'
+      };
+    }
+
+    // If it's a string, try to parse it (basic parsing)
+    if (typeof addressData === 'string') {
+      const parts = addressData.split(',').map(part => part.trim());
+      return {
+        name: parts[0] || '',
+        line1: parts[1] || '',
+        line2: '',
+        city: parts[2] || '',
+        state: parts[3] || '',
+        postal_code: parts[4] || '',
+        country: 'US'
+      };
+    }
+
+    return {
+      name: '',
+      line1: '',
+      line2: '',
+      city: '',
+      state: '',
+      postal_code: '',
+      country: 'US'
+    };
+  };
+
+  const handleStartAddressEdit = () => {
+    if (!selectedEventDetails) return;
+    
+    const parsedAddress = parseShippingAddress(selectedEventDetails.pmo_shipping_address);
+    setAddressFormData(parsedAddress);
+    setEditingShippingAddress(true);
+  };
+
+  const handleCancelAddressEdit = () => {
+    setEditingShippingAddress(false);
+    setIsSavingAddress(false);
+    setAddressFormData({
+      name: '',
+      line1: '',
+      line2: '',
+      city: '',
+      state: '',
+      postal_code: '',
+      country: 'US'
+    });
+  };
+
+  const handleAddressFieldChange = (field: keyof ShippingAddress, value: string) => {
+    setAddressFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleSaveAddress = async () => {
+    if (!selectedEventDetails) return;
+
+    const paymentIntentId = selectedEventDetails.pmo_payment_intent_id ||
+                            selectedEventDetails.stripe_payment_id;
+    
+    if (!paymentIntentId) {
+      console.error('❌ No payment intent ID found for address update');
+      setToastMessage('Error: No payment ID found');
+      setToastType('error');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+      return;
+    }
+
+    setIsSavingAddress(true);
+
+    try {
+      const result = await updateShippingAddress(paymentIntentId, addressFormData);
+      
+      if (!result.success) {
+        console.error('Failed to update shipping address:', result.error);
+        setToastMessage(`Failed to update address: ${result.error}`);
+        setToastType('error');
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3000);
+        return;
+      }
+
+      // Update the local state
+      setSelectedEventDetails(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          pmo_shipping_address: addressFormData
+        };
+      });
+
+      // Update the events list as well
+      setEvents(prev => prev.map(event => 
+        event.id === selectedEventDetails.id 
+          ? { ...event, pmo_shipping_address: addressFormData }
+          : event
+      ));
+
+      setEditingShippingAddress(false);
+      setToastMessage('Address updated successfully!');
+      setToastType('success');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+
+    } catch (error) {
+      console.error('Error updating address:', error);
+      setToastMessage('An unexpected error occurred while updating the address');
+      setToastType('error');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    } finally {
+      setIsSavingAddress(false);
     }
   };
 
@@ -1982,30 +2153,155 @@ export default function OrdersPage() {
 
                     {/* Shipping Address */}
                     <div className="bg-purple-50 rounded-lg p-4">
-                      <label className="text-sm font-medium text-purple-700 block mb-2">Shipping Address</label>
-                      <div className="bg-white rounded px-3 py-2 border">
-                        <EditableField
-                          fieldName="pmo_shipping_address"
-                          value={selectedEventDetails.pmo_shipping_address || ''}
-                          isEditing={editingField?.fieldName === 'pmo_shipping_address'}
-                          tempValue={editingField?.tempValue || ''}
-                          onStartEdit={() => {
-                            const paymentIntentId = selectedEventDetails.pmo_payment_intent_id ||
-                                                    selectedEventDetails.stripe_payment_id;
-                            if (!paymentIntentId) {
-                              console.error('❌ No payment intent ID found');
-                              return;
-                            }
-                            handleStartEditing('pmo_shipping_address', selectedEventDetails.pmo_shipping_address || '', { paymentIntentId });
-                          }}
-                          onCancelEdit={handleCancelEditing}
-                          onSaveEdit={handleSaveInlineEdit}
-                          onTempValueChange={handleTempValueChange}
-                          isSaving={isSavingField}
-                          placeholder="No shipping address"
-                          multiline={true}
-                        />
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-sm font-medium text-purple-700">Shipping Address</label>
+                        {!editingShippingAddress && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleStartAddressEdit}
+                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
+                          >
+                            Edit Address
+                          </Button>
+                        )}
                       </div>
+                      
+                      {editingShippingAddress ? (
+                        <div className="bg-white rounded-lg p-4 border space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="col-span-2">
+                              <Label htmlFor="address-name">Full Name</Label>
+                              <Input
+                                id="address-name"
+                                value={addressFormData.name}
+                                onChange={(e) => handleAddressFieldChange('name', e.target.value)}
+                                placeholder="John Doe"
+                                disabled={isSavingAddress}
+                              />
+                            </div>
+                            
+                            <div className="col-span-2">
+                              <Label htmlFor="address-line1">Address Line 1</Label>
+                              <Input
+                                id="address-line1"
+                                value={addressFormData.line1}
+                                onChange={(e) => handleAddressFieldChange('line1', e.target.value)}
+                                placeholder="123 Main Street"
+                                disabled={isSavingAddress}
+                              />
+                            </div>
+                            
+                            <div className="col-span-2">
+                              <Label htmlFor="address-line2">Address Line 2 (Optional)</Label>
+                              <Input
+                                id="address-line2"
+                                value={addressFormData.line2 || ''}
+                                onChange={(e) => handleAddressFieldChange('line2', e.target.value)}
+                                placeholder="Apt 4B, Suite 200, etc."
+                                disabled={isSavingAddress}
+                              />
+                            </div>
+                            
+                            <div>
+                              <Label htmlFor="address-city">City</Label>
+                              <Input
+                                id="address-city"
+                                value={addressFormData.city}
+                                onChange={(e) => handleAddressFieldChange('city', e.target.value)}
+                                placeholder="New York"
+                                disabled={isSavingAddress}
+                              />
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <Label htmlFor="address-state">State</Label>
+                                <Input
+                                  id="address-state"
+                                  value={addressFormData.state}
+                                  onChange={(e) => handleAddressFieldChange('state', e.target.value)}
+                                  placeholder="CA"
+                                  disabled={isSavingAddress}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="address-zip">ZIP</Label>
+                                <Input
+                                  id="address-zip"
+                                  value={addressFormData.postal_code}
+                                  onChange={(e) => handleAddressFieldChange('postal_code', e.target.value)}
+                                  placeholder="10001"
+                                  disabled={isSavingAddress}
+                                />
+                              </div>
+                            </div>
+                            
+                            <div className="col-span-2">
+                              <Label htmlFor="address-country">Country</Label>
+                              <Input
+                                id="address-country"
+                                value={addressFormData.country}
+                                onChange={(e) => handleAddressFieldChange('country', e.target.value)}
+                                placeholder="US"
+                                disabled={isSavingAddress}
+                              />
+                            </div>
+                          </div>
+                          
+                          <div className="flex justify-end gap-2 pt-4">
+                            <Button
+                              variant="outline"
+                              onClick={handleCancelAddressEdit}
+                              disabled={isSavingAddress}
+                            >
+                              Cancel
+                            </Button>
+                            <Button 
+                              onClick={handleSaveAddress}
+                              disabled={isSavingAddress}
+                            >
+                              {isSavingAddress ? 'Saving...' : 'Save Address'}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-white rounded px-3 py-2 border">
+                          <div className="text-sm">
+                            {selectedEventDetails.pmo_shipping_address ? (
+                              typeof selectedEventDetails.pmo_shipping_address === 'object' ? (
+                                <div className="space-y-1">
+                                  {selectedEventDetails.pmo_shipping_address.name && (
+                                    <div>{selectedEventDetails.pmo_shipping_address.name}</div>
+                                  )}
+                                  {selectedEventDetails.pmo_shipping_address.line1 && (
+                                    <div>
+                                      {selectedEventDetails.pmo_shipping_address.line1}
+                                      {selectedEventDetails.pmo_shipping_address.line2 && ` ${selectedEventDetails.pmo_shipping_address.line2}`}
+                                    </div>
+                                  )}
+                                  {(selectedEventDetails.pmo_shipping_address.city || selectedEventDetails.pmo_shipping_address.state || selectedEventDetails.pmo_shipping_address.postal_code) && (
+                                    <div>
+                                      {[
+                                        selectedEventDetails.pmo_shipping_address.city,
+                                        selectedEventDetails.pmo_shipping_address.state,
+                                        selectedEventDetails.pmo_shipping_address.postal_code
+                                      ].filter(Boolean).join(', ')}
+                                    </div>
+                                  )}
+                                  {selectedEventDetails.pmo_shipping_address.country && selectedEventDetails.pmo_shipping_address.country !== 'US' && (
+                                    <div>{selectedEventDetails.pmo_shipping_address.country}</div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div>{String(selectedEventDetails.pmo_shipping_address)}</div>
+                              )
+                            ) : (
+                              <span className="text-gray-400">No shipping address</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
