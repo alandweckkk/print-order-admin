@@ -1580,6 +1580,7 @@ export default function OrdersPage() {
                       <th className="text-left p-3 font-medium text-orange-600 whitespace-nowrap" style={{ width: '200px', fontSize: '10px' }}>Status</th>
                       <th className="text-left p-3 font-medium text-orange-600 whitespace-nowrap" style={{ width: '200px', fontSize: '10px' }}>Notes</th>
                       <th className="text-left p-3 font-medium text-orange-600 whitespace-nowrap" style={{ width: '200px', fontSize: '10px' }}>Batch Id</th>
+                      <th className="text-left p-3 font-medium text-orange-600 whitespace-nowrap" style={{ width: '100px', fontSize: '10px' }}>Sticker Sheet</th>
                       <th className="text-center p-3 font-medium text-xs whitespace-nowrap overflow-hidden text-ellipsis" style={{ width: '60px', fontSize: '8px' }}>Actions</th>
                       <th className="text-center p-3 font-medium text-xs whitespace-nowrap text-red-600" style={{ width: '60px', fontSize: '8px' }}>Delete</th>
                       <th className="text-center p-3 font-medium text-xs whitespace-nowrap" style={{ width: '60px', fontSize: '8px' }}>Send</th>
@@ -1702,6 +1703,13 @@ export default function OrdersPage() {
                           >
                             {event.batch_id || <span className="text-gray-400">-</span>}
                           </div>
+                        </td>
+                        <td className="p-3 align-middle" style={{ width: '100px' }}>
+                          {event.sticker_sheet_url ? (
+                            <TableImagePopover imageUrl={event.sticker_sheet_url} alt="Sticker sheet" />
+                          ) : (
+                            <span className="text-gray-400 text-xs">-</span>
+                          )}
                         </td>
                         <td className="text-center p-3 align-middle" style={{ width: '60px' }}>
                           <button
