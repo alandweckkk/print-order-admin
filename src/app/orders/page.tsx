@@ -41,7 +41,7 @@ export default function OrdersPage() {
   const [isSavingDefaults, setIsSavingDefaults] = useState(false);
   const [currentAdminName, setCurrentAdminName] = useState<string>('Joey');
   const popoverRef = useRef<HTMLDivElement>(null);
-  const eventsPerPage = 50;
+  const eventsPerPage = 210;
 
 
   // Add state for bulk selection
@@ -116,7 +116,12 @@ export default function OrdersPage() {
     { value: 'Contact User', label: 'Contact User' },
     { value: 'Alan Review', label: 'Alan Review' },
     { value: 'Question', label: 'Question' },
-    { value: 'Hide', label: 'Hide' }
+    { value: 'Hide', label: 'Hide' },
+    { value: 'Batch In Progress', label: 'Batch In Progress' },
+    { value: 'Sticker Printed', label: 'Sticker Printed' },
+    { value: 'Sticker Printing Ready', label: 'Sticker Printing Ready' },
+    { value: 'Printed', label: 'Printed' },
+    { value: 'Done', label: 'Done' }
   ];
 
   // Batch management functions
@@ -212,6 +217,18 @@ export default function OrdersPage() {
       }
       return newSet;
     });
+  };
+
+  // Handle status filter changes
+  const handleFilterChange = (newFilter: string) => {
+    setFilterDropdownValue(newFilter);
+    setCurrentPage(1); // Reset to first page when filter changes
+  };
+
+  // Clear status filter
+  const clearFilter = () => {
+    setFilterDropdownValue('');
+    setCurrentPage(1);
   };
 
 
@@ -443,7 +460,8 @@ export default function OrdersPage() {
     const loadPageData = async () => {
       setLoading(true);
       try {
-        const { events: stripeEvents, total } = await fetchPhysicalStripeEvents(currentPage, eventsPerPage);
+        const statusFilterValue = filterDropdownValue === 'Show All' || !filterDropdownValue ? undefined : filterDropdownValue;
+        const { events: stripeEvents, total } = await fetchPhysicalStripeEvents(currentPage, eventsPerPage, statusFilterValue);
         setEvents(stripeEvents);
         setTotalEvents(total);
         
@@ -463,7 +481,7 @@ export default function OrdersPage() {
     };
 
     loadPageData();
-  }, [currentPage]);
+  }, [currentPage, filterDropdownValue]);
 
   // Close popover when clicking outside
   useEffect(() => {
@@ -1550,19 +1568,79 @@ export default function OrdersPage() {
               )}
               </div>
 
-              {/* Add new dropdown between eye icon and Create Batch */}
-              <Select value={filterDropdownValue} onValueChange={setFilterDropdownValue}>
-                <SelectTrigger className="w-[160px] h-9">
-                  <SelectValue placeholder="Select action..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Approved Batchable">Approved Batchable</SelectItem>
-                  <SelectItem value="Contact User">Contact User</SelectItem>
-                  <SelectItem value="Alan Review">Alan Review</SelectItem>
-                  <SelectItem value="Question">Question</SelectItem>
-                  <SelectItem value="Hide">Hide</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* Status Filter Dropdown with Clear Button */}
+              <div className="flex items-center gap-1">
+                <Select value={filterDropdownValue} onValueChange={handleFilterChange}>
+                  <SelectTrigger className="w-[260px] h-9">
+                    <SelectValue placeholder="Filter by status...">
+                      {filterDropdownValue && filterDropdownValue !== 'Show All' && (
+                        <div className="flex items-center">
+                          <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
+                            filterDropdownValue === 'Approved Batchable' ? 'bg-green-500' :
+                            filterDropdownValue === 'Contact User' ? 'bg-blue-500' :
+                            filterDropdownValue === 'Alan Review' ? 'bg-yellow-500' :
+                            filterDropdownValue === 'Question' ? 'bg-purple-500' :
+                            filterDropdownValue === 'Hide' ? 'bg-red-500' :
+                            filterDropdownValue === 'Batch In Progress' ? 'bg-orange-500' :
+                            filterDropdownValue === 'Sticker Printed' ? 'bg-teal-500' :
+                            filterDropdownValue === 'Sticker Printing Ready' ? 'bg-cyan-500' :
+                            filterDropdownValue === 'Printed' ? 'bg-lime-500' :
+                            filterDropdownValue === 'Done' ? 'bg-emerald-500' :
+                            filterDropdownValue === 'No Status' ? 'bg-gray-300' :
+                            'bg-gray-300'
+                          }`}></span>
+                          {statusOptions.find(opt => opt.value === filterDropdownValue)?.label || filterDropdownValue}
+                        </div>
+                      )}
+                      {(!filterDropdownValue || filterDropdownValue === 'Show All') && (
+                        <span className="text-gray-500">Show All</span>
+                      )}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Show All">
+                      <div className="flex items-center">
+                        <span className="inline-block w-2 h-2 rounded-full mr-2 bg-gray-200"></span>
+                        Show All
+                      </div>
+                    </SelectItem>
+                    {statusOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <div className="flex items-center">
+                          <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
+                            option.value === 'Approved Batchable' ? 'bg-green-500' :
+                            option.value === 'Contact User' ? 'bg-blue-500' :
+                            option.value === 'Alan Review' ? 'bg-yellow-500' :
+                            option.value === 'Question' ? 'bg-purple-500' :
+                            option.value === 'Hide' ? 'bg-red-500' :
+                            option.value === 'Batch In Progress' ? 'bg-orange-500' :
+                            option.value === 'Sticker Printed' ? 'bg-teal-500' :
+                            option.value === 'Sticker Printing Ready' ? 'bg-cyan-500' :
+                            option.value === 'Printed' ? 'bg-lime-500' :
+                            option.value === 'Done' ? 'bg-emerald-500' :
+                            option.value === 'No Status' ? 'bg-gray-300' :
+                            'bg-gray-300'
+                          }`}></span>
+                          {option.label}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                {/* Clear Filter Button - only show when filter is active */}
+                {filterDropdownValue && filterDropdownValue !== 'Show All' && (
+                  <button
+                    onClick={clearFilter}
+                    className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                    title="Clear filter"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
 
               {/* Add search bar */}
               <div className="relative">
@@ -1805,6 +1883,11 @@ export default function OrdersPage() {
                                    (event.batch_status === 'Alan Review') ? 'bg-yellow-500' :
                                    (event.batch_status === 'Question') ? 'bg-purple-500' :
                                    (event.batch_status === 'Hide') ? 'bg-red-500' :
+                                   (event.batch_status === 'Batch In Progress') ? 'bg-orange-500' :
+                                   (event.batch_status === 'Sticker Printed') ? 'bg-teal-500' :
+                                   (event.batch_status === 'Sticker Printing Ready') ? 'bg-cyan-500' :
+                                   (event.batch_status === 'Printed') ? 'bg-lime-500' :
+                                   (event.batch_status === 'Done') ? 'bg-emerald-500' :
                                    'bg-gray-300'
                                  }`}></span>
                                 {statusOptions.find(opt => opt.value === (event.batch_status || 'No Status'))?.label || 'No Status'}
@@ -1820,6 +1903,11 @@ export default function OrdersPage() {
                                        option.value === 'Alan Review' ? 'bg-yellow-500' :
                                        option.value === 'Question' ? 'bg-purple-500' :
                                        option.value === 'Hide' ? 'bg-red-500' :
+                                       option.value === 'Batch In Progress' ? 'bg-orange-500' :
+                                       option.value === 'Sticker Printed' ? 'bg-teal-500' :
+                                       option.value === 'Sticker Printing Ready' ? 'bg-cyan-500' :
+                                       option.value === 'Printed' ? 'bg-lime-500' :
+                                       option.value === 'Done' ? 'bg-emerald-500' :
                                        option.value === 'No Status' ? 'bg-gray-300' :
                                        'bg-gray-300'
                                      }`}></span>
@@ -2167,88 +2255,88 @@ export default function OrdersPage() {
                         )}
                       </div>
                       
-                      {editingShippingAddress ? (
-                        <div className="bg-white rounded-lg p-4 border space-y-4">
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="col-span-2">
-                              <Label htmlFor="address-name">Full Name</Label>
-                              <Input
-                                id="address-name"
-                                value={addressFormData.name}
-                                onChange={(e) => handleAddressFieldChange('name', e.target.value)}
-                                placeholder="John Doe"
-                                disabled={isSavingAddress}
-                              />
-                            </div>
-                            
-                            <div className="col-span-2">
-                              <Label htmlFor="address-line1">Address Line 1</Label>
-                              <Input
-                                id="address-line1"
-                                value={addressFormData.line1}
-                                onChange={(e) => handleAddressFieldChange('line1', e.target.value)}
-                                placeholder="123 Main Street"
-                                disabled={isSavingAddress}
-                              />
-                            </div>
-                            
-                            <div className="col-span-2">
-                              <Label htmlFor="address-line2">Address Line 2 (Optional)</Label>
-                              <Input
-                                id="address-line2"
-                                value={addressFormData.line2 || ''}
-                                onChange={(e) => handleAddressFieldChange('line2', e.target.value)}
-                                placeholder="Apt 4B, Suite 200, etc."
-                                disabled={isSavingAddress}
-                              />
-                            </div>
-                            
+                      <div className="bg-white rounded-lg p-4 border space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="col-span-2">
+                            <Label htmlFor="address-name">Full Name</Label>
+                            <Input
+                              id="address-name"
+                              value={addressFormData.name}
+                              onChange={(e) => handleAddressFieldChange('name', e.target.value)}
+                              placeholder="John Doe"
+                              disabled={!editingShippingAddress || isSavingAddress}
+                            />
+                          </div>
+                          
+                          <div className="col-span-2">
+                            <Label htmlFor="address-line1">Address Line 1</Label>
+                            <Input
+                              id="address-line1"
+                              value={addressFormData.line1}
+                              onChange={(e) => handleAddressFieldChange('line1', e.target.value)}
+                              placeholder="123 Main Street"
+                              disabled={!editingShippingAddress || isSavingAddress}
+                            />
+                          </div>
+                          
+                          <div className="col-span-2">
+                            <Label htmlFor="address-line2">Address Line 2 (Optional)</Label>
+                            <Input
+                              id="address-line2"
+                              value={addressFormData.line2 || ''}
+                              onChange={(e) => handleAddressFieldChange('line2', e.target.value)}
+                              placeholder="Apt 4B, Suite 200, etc."
+                              disabled={!editingShippingAddress || isSavingAddress}
+                            />
+                          </div>
+                          
+                          <div>
+                            <Label htmlFor="address-city">City</Label>
+                            <Input
+                              id="address-city"
+                              value={addressFormData.city}
+                              onChange={(e) => handleAddressFieldChange('city', e.target.value)}
+                              placeholder="New York"
+                              disabled={!editingShippingAddress || isSavingAddress}
+                            />
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-2">
                             <div>
-                              <Label htmlFor="address-city">City</Label>
+                              <Label htmlFor="address-state">State</Label>
                               <Input
-                                id="address-city"
-                                value={addressFormData.city}
-                                onChange={(e) => handleAddressFieldChange('city', e.target.value)}
-                                placeholder="New York"
-                                disabled={isSavingAddress}
+                                id="address-state"
+                                value={addressFormData.state}
+                                onChange={(e) => handleAddressFieldChange('state', e.target.value)}
+                                placeholder="CA"
+                                disabled={!editingShippingAddress || isSavingAddress}
                               />
                             </div>
-                            
-                            <div className="grid grid-cols-2 gap-2">
-                              <div>
-                                <Label htmlFor="address-state">State</Label>
-                                <Input
-                                  id="address-state"
-                                  value={addressFormData.state}
-                                  onChange={(e) => handleAddressFieldChange('state', e.target.value)}
-                                  placeholder="CA"
-                                  disabled={isSavingAddress}
-                                />
-                              </div>
-                              <div>
-                                <Label htmlFor="address-zip">ZIP</Label>
-                                <Input
-                                  id="address-zip"
-                                  value={addressFormData.postal_code}
-                                  onChange={(e) => handleAddressFieldChange('postal_code', e.target.value)}
-                                  placeholder="10001"
-                                  disabled={isSavingAddress}
-                                />
-                              </div>
-                            </div>
-                            
-                            <div className="col-span-2">
-                              <Label htmlFor="address-country">Country</Label>
+                            <div>
+                              <Label htmlFor="address-zip">ZIP</Label>
                               <Input
-                                id="address-country"
-                                value={addressFormData.country}
-                                onChange={(e) => handleAddressFieldChange('country', e.target.value)}
-                                placeholder="US"
-                                disabled={isSavingAddress}
+                                id="address-zip"
+                                value={addressFormData.postal_code}
+                                onChange={(e) => handleAddressFieldChange('postal_code', e.target.value)}
+                                placeholder="10001"
+                                disabled={!editingShippingAddress || isSavingAddress}
                               />
                             </div>
                           </div>
                           
+                          <div className="col-span-2">
+                            <Label htmlFor="address-country">Country</Label>
+                            <Input
+                              id="address-country"
+                              value={addressFormData.country}
+                              onChange={(e) => handleAddressFieldChange('country', e.target.value)}
+                              placeholder="US"
+                              disabled={!editingShippingAddress || isSavingAddress}
+                            />
+                          </div>
+                        </div>
+                        
+                        {editingShippingAddress && (
                           <div className="flex justify-end gap-2 pt-4">
                             <Button
                               variant="outline"
@@ -2264,44 +2352,8 @@ export default function OrdersPage() {
                               {isSavingAddress ? 'Saving...' : 'Save Address'}
                             </Button>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="bg-white rounded px-3 py-2 border">
-                          <div className="text-sm">
-                            {selectedEventDetails.pmo_shipping_address ? (
-                              typeof selectedEventDetails.pmo_shipping_address === 'object' ? (
-                                <div className="space-y-1">
-                                  {selectedEventDetails.pmo_shipping_address.name && (
-                                    <div>{selectedEventDetails.pmo_shipping_address.name}</div>
-                                  )}
-                                  {selectedEventDetails.pmo_shipping_address.line1 && (
-                                    <div>
-                                      {selectedEventDetails.pmo_shipping_address.line1}
-                                      {selectedEventDetails.pmo_shipping_address.line2 && ` ${selectedEventDetails.pmo_shipping_address.line2}`}
-                                    </div>
-                                  )}
-                                  {(selectedEventDetails.pmo_shipping_address.city || selectedEventDetails.pmo_shipping_address.state || selectedEventDetails.pmo_shipping_address.postal_code) && (
-                                    <div>
-                                      {[
-                                        selectedEventDetails.pmo_shipping_address.city,
-                                        selectedEventDetails.pmo_shipping_address.state,
-                                        selectedEventDetails.pmo_shipping_address.postal_code
-                                      ].filter(Boolean).join(', ')}
-                                    </div>
-                                  )}
-                                  {selectedEventDetails.pmo_shipping_address.country && selectedEventDetails.pmo_shipping_address.country !== 'US' && (
-                                    <div>{selectedEventDetails.pmo_shipping_address.country}</div>
-                                  )}
-                                </div>
-                              ) : (
-                                <div>{String(selectedEventDetails.pmo_shipping_address)}</div>
-                              )
-                            ) : (
-                              <span className="text-gray-400">No shipping address</span>
-                            )}
-                          </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -2337,49 +2389,56 @@ export default function OrdersPage() {
                       </div>
                     </div>
 
-                    {/* Status */}
+                                        {/* Status */}
                     <div className="bg-orange-50 rounded-lg p-4">
                       <label className="text-sm font-medium text-orange-700 block mb-2">Status</label>
                       <div className="bg-white rounded px-3 py-2 border">
-                        <EditableField
-                          fieldName="batch_status"
-                          value={selectedEventDetails.batch_status || ''}
-                          isEditing={editingField?.fieldName === 'batch_status'}
-                          tempValue={editingField?.tempValue || ''}
-                          onStartEdit={() => {
-                            const payload = selectedEventDetails.payload as { data?: { object?: { id?: string } }; payment_intent_id?: string };
-                            const stripePaymentId = selectedEventDetails.stripe_payment_id ||
-                                                   payload?.data?.object?.id || 
-                                                   payload?.payment_intent_id ||
-                                                   selectedEventDetails.transaction_id;
-                            if (!stripePaymentId) {
-                              console.error('❌ No stripe payment ID found');
-                              return;
-                            }
-                            handleStartEditing('batch_status', selectedEventDetails.batch_status || '', { stripePaymentId });
-                          }}
-                          onCancelEdit={handleCancelEditing}
-                          onSaveEdit={handleSaveInlineEdit}
-                          onTempValueChange={handleTempValueChange}
-                          isSaving={isSavingField}
-                          placeholder="No status"
-                          displayClassName="flex items-center"
-                          customDisplay={
-                            selectedEventDetails.batch_status ? (
-                              <div className="flex items-center">
-                                <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
-                                  (selectedEventDetails.batch_status === 'Approved Batchable') ? 'bg-green-500' :
-                                  (selectedEventDetails.batch_status === 'Contact User') ? 'bg-blue-500' :
-                                  (selectedEventDetails.batch_status === 'Alan Review') ? 'bg-yellow-500' :
-                                  (selectedEventDetails.batch_status === 'Question') ? 'bg-purple-500' :
-                                  (selectedEventDetails.batch_status === 'Hide') ? 'bg-red-500' :
-                                  'bg-gray-300'
-                                }`}></span>
-                                <span className="text-sm">{selectedEventDetails.batch_status}</span>
-                              </div>
-                            ) : null
-                          }
-                        />
+                        <Select
+                          value={selectedEventDetails.batch_status ? String(selectedEventDetails.batch_status) : 'No Status'}
+                          onValueChange={(newStatus) => handleStatusChange(selectedEventDetails.id, newStatus)}
+                        >
+                          <SelectTrigger className="w-full h-8 text-xs">
+                            <SelectValue>
+                              <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
+                                (selectedEventDetails.batch_status === 'Approved Batchable') ? 'bg-green-500' :
+                                (selectedEventDetails.batch_status === 'Contact User') ? 'bg-blue-500' :
+                                (selectedEventDetails.batch_status === 'Alan Review') ? 'bg-yellow-500' :
+                                (selectedEventDetails.batch_status === 'Question') ? 'bg-purple-500' :
+                                (selectedEventDetails.batch_status === 'Hide') ? 'bg-red-500' :
+                                (selectedEventDetails.batch_status === 'Batch In Progress') ? 'bg-orange-500' :
+                                (selectedEventDetails.batch_status === 'Sticker Printed') ? 'bg-teal-500' :
+                                (selectedEventDetails.batch_status === 'Sticker Printing Ready') ? 'bg-cyan-500' :
+                                (selectedEventDetails.batch_status === 'Printed') ? 'bg-lime-500' :
+                                (selectedEventDetails.batch_status === 'Done') ? 'bg-emerald-500' :
+                                'bg-gray-300'
+                              }`}></span>
+                              {statusOptions.find(opt => opt.value === (selectedEventDetails.batch_status || 'No Status'))?.label || 'No Status'}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {statusOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                <div className="flex items-center">
+                                  <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
+                                    option.value === 'Approved Batchable' ? 'bg-green-500' :
+                                    option.value === 'Contact User' ? 'bg-blue-500' :
+                                    option.value === 'Alan Review' ? 'bg-yellow-500' :
+                                    option.value === 'Question' ? 'bg-purple-500' :
+                                    option.value === 'Hide' ? 'bg-red-500' :
+                                    option.value === 'Batch In Progress' ? 'bg-orange-500' :
+                                    option.value === 'Sticker Printed' ? 'bg-teal-500' :
+                                    option.value === 'Sticker Printing Ready' ? 'bg-cyan-500' :
+                                    option.value === 'Printed' ? 'bg-lime-500' :
+                                    option.value === 'Done' ? 'bg-emerald-500' :
+                                    option.value === 'No Status' ? 'bg-gray-300' :
+                                    'bg-gray-300'
+                                  }`}></span>
+                                  {option.label}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
 

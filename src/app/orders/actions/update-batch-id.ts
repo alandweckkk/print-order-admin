@@ -9,10 +9,14 @@ export async function updateBatchId(stripePaymentId: string, newBatchId: string)
     const supabase = await createAdminClient();
     console.log('📡 Supabase admin client created');
     
+    // Convert empty string to null for proper database semantics
+    const batchIdValue = newBatchId.trim() === '' ? null : newBatchId;
+    console.log('📝 Batch ID value after processing:', { original: newBatchId, processed: batchIdValue });
+    
     // Update the batch_id in the z_print_order_management table
     const { data, error } = await supabase
       .from('z_print_order_management')
-      .update({ batch_id: newBatchId })
+      .update({ batch_id: batchIdValue })
       .eq('stripe_payment_id', stripePaymentId)
       .select();
 

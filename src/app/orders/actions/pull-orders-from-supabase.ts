@@ -330,7 +330,7 @@ export async function fetchTableColumns(): Promise<string[]> {
   }
 }
 
-export async function fetchPhysicalStripeEvents(page: number = 1, limit: number = 100): Promise<{ events: CombinedOrderEvent[], total: number }> {
+export async function fetchPhysicalStripeEvents(page: number = 1, limit: number = 100, statusFilter?: string): Promise<{ events: CombinedOrderEvent[], total: number }> {
   "use server";
   
   try {
@@ -342,10 +342,18 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
     
     // First get total count from z_print_order_management (only visible records)
     console.log('Getting total count of z_print_order_management (visible only)...');
-    const { count: totalCount, error: countError } = await supabase
+    let countQuery = supabase
       .from('z_print_order_management')
       .select('*', { count: 'exact', head: true })
       .eq('visible', true);
+    
+    // Add status filter if provided
+    if (statusFilter && statusFilter !== '' && statusFilter !== 'Show All') {
+      countQuery = countQuery.eq('status', statusFilter);
+      console.log('Applied status filter to count query:', statusFilter);
+    }
+    
+    const { count: totalCount, error: countError } = await countQuery;
 
     if (countError) {
       console.error('COUNT ERROR:', countError);
@@ -357,10 +365,18 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
     
     // Get paginated records from z_print_order_management (only visible records)
     console.log(`Fetching z_print_order_management (visible only)... offset: ${offset}, limit: ${limit}`);
-    const { data: managementRecords, error: managementError } = await supabase
+    let dataQuery = supabase
       .from('z_print_order_management')
       .select('*')
-      .eq('visible', true)
+      .eq('visible', true);
+    
+    // Add status filter if provided
+    if (statusFilter && statusFilter !== '' && statusFilter !== 'Show All') {
+      dataQuery = dataQuery.eq('status', statusFilter);
+      console.log('Applied status filter to data query:', statusFilter);
+    }
+    
+    const { data: managementRecords, error: managementError } = await dataQuery
       .order('id', { ascending: false })
       .range(offset, offset + limit - 1);
 
