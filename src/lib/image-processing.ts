@@ -106,7 +106,7 @@ export async function createStickerSheet(
   const {
     canvasWidth = 1200,
     canvasHeight = 2267,
-    stickerHeight = 600,
+    stickerHeight = 630,
     yPositions = [134, 834, 1534],
     backgroundColor = { r: 255, g: 255, b: 255 }
   } = options;

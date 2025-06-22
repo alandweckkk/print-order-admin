@@ -11,6 +11,8 @@ export default function StickerLayoutPage() {
   const [outputImageUrl, setOutputImageUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState('');
+  const [layout, setLayout] = useState<'2-up' | '3-up'>('3-up');
+  const [resultLayout, setResultLayout] = useState<'2-up' | '3-up'>('3-up');
 
   const processImageUrl = async (imageUrl: string) => {
     setLoading(true);
@@ -19,13 +21,13 @@ export default function StickerLayoutPage() {
     setOutputImageUrl(null);
 
     try {
-      // Call API route with URL
+      // Call API route with URL and layout
       const response = await fetch('/api/create-sticker-sheet', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ imageUrl }),
+        body: JSON.stringify({ imageUrl, layout }),
       });
 
       const result = await response.json();
@@ -37,8 +39,9 @@ export default function StickerLayoutPage() {
       // Set the input and output URLs
       setInputImageUrl(result.inputImageUrl);
       setOutputImageUrl(result.outputImageUrl);
+      setResultLayout(result.layout || layout);
 
-      console.log('✅ Image processed and saved to blob storage:', result.outputImageUrl);
+      console.log(`✅ ${result.layout || layout} image processed and saved to blob storage:`, result.outputImageUrl);
     } catch (err) {
       console.error('Error processing image:', err);
       setError(err instanceof Error ? err.message : 'An error occurred processing the image');
@@ -76,7 +79,7 @@ export default function StickerLayoutPage() {
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Sticker Sheet Layout</h1>
-          <p className="text-gray-600 mt-2">Enter an image URL to create a 3-up vertical sticker sheet that&apos;s print-ready</p>
+          <p className="text-gray-600 mt-2">Enter an image URL to create a {layout} vertical sticker sheet that&apos;s print-ready</p>
         </div>
 
         <div className="space-y-6">
@@ -90,6 +93,47 @@ export default function StickerLayoutPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
+                {/* Layout Selection */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium text-gray-700">Layout Options</h4>
+                  <div className="flex space-x-6">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="layout"
+                        value="3-up"
+                        checked={layout === '3-up'}
+                        onChange={(e) => setLayout(e.target.value as '3-up')}
+                        disabled={loading}
+                        className="text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">
+                        <strong>3-up</strong> (630px height)
+                      </span>
+                    </label>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="layout"
+                        value="2-up"
+                        checked={layout === '2-up'}
+                        onChange={(e) => setLayout(e.target.value as '2-up')}
+                        disabled={loading}
+                        className="text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">
+                        <strong>2-up</strong> (950px height)
+                      </span>
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    {layout === '3-up' 
+                      ? '3 stickers per sheet • 630px height • Standard size'
+                      : '2 stickers per sheet • 950px height • 50% larger stickers'
+                    }
+                  </p>
+                </div>
+
                 <div className="flex space-x-2">
                   <input
                     type="url"
@@ -106,7 +150,7 @@ export default function StickerLayoutPage() {
                     disabled={loading || !imageUrl.trim()}
                     className="bg-gray-900 hover:bg-gray-800 text-white px-6"
                   >
-                    Create Sticker Sheet
+                    Create {layout} Sheet
                   </Button>
                 </div>
                 <p className="text-sm text-gray-500">
@@ -139,7 +183,7 @@ export default function StickerLayoutPage() {
                 <div className="text-center">
                   <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
                   <p className="text-gray-600">Processing your image...</p>
-                  <p className="text-sm text-gray-500 mt-1">Creating 3-up sticker sheet layout</p>
+                  <p className="text-sm text-gray-500 mt-1">Creating {layout} sticker sheet layout</p>
                 </div>
               </CardContent>
             </Card>
@@ -186,7 +230,7 @@ export default function StickerLayoutPage() {
                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 bg-white mb-4">
                       <img
                         src={outputImageUrl}
-                        alt="Generated sticker sheet - 3-up vertical layout"
+                        alt={`Generated sticker sheet - ${resultLayout} vertical layout`}
                         className="max-w-full h-auto mx-auto shadow-lg rounded"
                         style={{ maxHeight: '600px' }}
                       />
@@ -216,7 +260,7 @@ export default function StickerLayoutPage() {
                       </div>
                     </div>
                     <p className="text-xs text-gray-500 mt-2">
-                      ✅ 3-up vertical layout • 1200×2267px • Print-ready
+                      ✅ {resultLayout} vertical layout • 1200×2267px • {resultLayout === '2-up' ? '950px' : '630px'} sticker height • Print-ready
                     </p>
                   </div>
                 </div>
@@ -242,11 +286,11 @@ export default function StickerLayoutPage() {
                   </div>
                   <div className="flex items-start space-x-3">
                     <div className="bg-blue-100 text-blue-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-medium">3</div>
-                    <p>Resized to 600px height while maintaining aspect ratio</p>
+                    <p>Resized to {layout === '2-up' ? '950px' : '630px'} height while maintaining aspect ratio</p>
                   </div>
                   <div className="flex items-start space-x-3">
                     <div className="bg-blue-100 text-blue-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-medium">4</div>
-                    <p>Placed 3 times on a 1200×2267px white canvas for printing</p>
+                    <p>Placed {layout === '2-up' ? '2' : '3'} times on a 1200×2267px white canvas for printing</p>
                   </div>
                   <div className="flex items-start space-x-3">
                     <div className="bg-blue-100 text-blue-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-medium">5</div>
