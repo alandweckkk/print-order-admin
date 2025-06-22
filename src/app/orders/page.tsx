@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PopoverCutoffText } from "@/components/ui/popover-cutoff-text";
 import { TableImagePopover } from "@/components/TableImagePopover";
+import { EditableField } from "@/components/ui/editable-field";
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,10 @@ import { createBatch } from './actions/create-batch';
 import { updateOrderStatus } from './actions/update-order-status';
 import { updateOrderVisibility } from './actions/update-order-visibility';
 import { updateOrderNotes } from './actions/update-order-notes';
+import { updateBatchId } from './actions/update-batch-id';
+import { updatePhysicalMailOrder } from './actions/update-physical-mail-order';
+import { updateModelRun } from './actions/update-model-run';
+import { updateStripeEvent } from './actions/update-stripe-event';
 
 export default function OrdersPage() {
   const [events, setEvents] = useState<CombinedOrderEvent[]>([]);
@@ -26,7 +31,7 @@ export default function OrdersPage() {
   const [stripeColumns, setStripeColumns] = useState<string[]>([]);
   const [physicalMailColumns, setPhysicalMailColumns] = useState<string[]>([]);
   const [modelRunsColumns, setModelRunsColumns] = useState<string[]>([]);
-  const [batchColumns] = useState<string[]>(['status', 'order_notes']);
+  const [batchColumns] = useState<string[]>([]);
 
   const [visibleColumns, setVisibleColumns] = useState<ColumnConfig[]>([]);
   const [showColumnPopover, setShowColumnPopover] = useState(false);
@@ -63,6 +68,20 @@ export default function OrdersPage() {
 
   // Add notes state for each row
   const [rowNotes, setRowNotes] = useState<Record<number, string>>({});
+
+  // Add inline editing state for modal fields
+  const [editingField, setEditingField] = useState<{
+    fieldName: string;
+    tempValue: string;
+    originalValue: string;
+    // Field-specific IDs for different tables
+    stripePaymentId?: string;  // For z_print_order_management
+    paymentIntentId?: string;  // For physical_mail_orders  
+    modelRunId?: string;       // For model_runs
+    stripeEventId?: number;    // For stripe_captured_events
+  } | null>(null);
+  
+  const [isSavingField, setIsSavingField] = useState(false);
 
   // Add toast state
   const [showToast, setShowToast] = useState(false);
@@ -326,11 +345,16 @@ export default function OrdersPage() {
           console.log('⚠️ No admin defaults found, using fallback columns:', defaultColumnConfigs);
         }
         
-        // Remove the unwanted batch columns that were deleted (but keep order_notes)
-        const unwantedBatchColumns = ['batch_address_approved', 'batch_artwork_approved', 'batch_no_red_flags', 'batch_has_other_orders', 'batch_notes'];
+        // Remove the unwanted batch columns that were deleted and now-hardcoded columns
+        const unwantedBatchColumns = ['batch_address_approved', 'batch_artwork_approved', 'batch_no_red_flags', 'batch_has_other_orders', 'batch_notes', 'batch_id', 'batch_status', 'order_notes'];
         const cleanedColumnConfigs = defaultColumnConfigs.filter(col => !unwantedBatchColumns.includes(col.name));
         
-        setVisibleColumns(cleanedColumnConfigs);
+        // Additional immediate cleanup of hardcoded columns
+        const finalCleanedConfigs = cleanedColumnConfigs.filter(col => 
+          !['batch_status', 'order_notes', 'batch_id'].includes(col.name)
+        );
+        
+        setVisibleColumns(finalCleanedConfigs);
         
         // If we removed any columns, save the cleaned up defaults
         if (cleanedColumnConfigs.length !== defaultColumnConfigs.length) {
@@ -371,25 +395,31 @@ export default function OrdersPage() {
 
   // Clean up any unwanted batch columns from visible columns
   useEffect(() => {
-    const unwantedBatchColumns = ['batch_address_approved', 'batch_artwork_approved', 'batch_no_red_flags', 'batch_has_other_orders', 'batch_notes'];
+    const unwantedBatchColumns = ['batch_address_approved', 'batch_artwork_approved', 'batch_no_red_flags', 'batch_has_other_orders', 'batch_notes', 'batch_id', 'batch_status', 'order_notes'];
     
-    setVisibleColumns(prev => {
-      const filtered = prev.filter(col => !unwantedBatchColumns.includes(col.name));
-      
-      // If we filtered out columns, log it
-      if (filtered.length !== prev.length) {
-        console.log('🧹 Removed unwanted batch columns from visible columns');
-        // Auto-save the cleaned up state
-        setTimeout(() => {
-          saveCurrentAdminDefaults(
-            filtered,
-            `Removed unwanted batch columns at ${new Date().toLocaleString()}`
-          );
-        }, 1000);
-      }
-      
-      return filtered;
-    });
+          setVisibleColumns(prev => {
+        // More aggressive cleanup - remove all hardcoded columns
+        const filtered = prev.filter(col => 
+          !unwantedBatchColumns.includes(col.name) && 
+          !['batch_status', 'order_notes', 'batch_id'].includes(col.name)
+        );
+        
+        // If we filtered out columns, log it and save immediately
+        if (filtered.length !== prev.length) {
+          console.log('🧹 Aggressively removed unwanted batch columns from visible columns');
+          console.log('Removed:', prev.filter(col => !filtered.includes(col)).map(col => col.name));
+          
+          // Auto-save the cleaned up state immediately
+          setTimeout(() => {
+            saveCurrentAdminDefaults(
+              filtered,
+              `Aggressively cleaned hardcoded columns at ${new Date().toLocaleString()}`
+            );
+          }, 500);
+        }
+        
+        return filtered;
+      });
   }, []);
 
   // Separate effect for loading page data
@@ -443,16 +473,22 @@ export default function OrdersPage() {
           setShowWidthPopover(null);
         }
       }
+
+      // Cancel inline editing when clicking outside modal
+      if (editingField !== null && !showDetailsModal) {
+        setEditingField(null);
+        setIsSavingField(false);
+      }
     };
 
-    if (showColumnPopover || editingStatus !== null || showWidthPopover !== null) {
+    if (showColumnPopover || editingStatus !== null || showWidthPopover !== null || editingField !== null) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showColumnPopover, editingStatus, showWidthPopover]);
+  }, [showColumnPopover, editingStatus, showWidthPopover, editingField, showDetailsModal]);
 
   const formatCurrency = (amount: number | null) => {
     if (!amount) return '-';
@@ -473,6 +509,11 @@ export default function OrdersPage() {
   };
 
   const toggleColumnVisibility = (columnName: string) => {
+    // Prevent hardcoded columns from being added back
+    if (['batch_status', 'order_notes', 'batch_id'].includes(columnName)) {
+      return;
+    }
+    
     setVisibleColumns(prev => {
       const existingIndex = prev.findIndex(col => col.name === columnName);
       if (existingIndex !== -1) {
@@ -668,7 +709,9 @@ export default function OrdersPage() {
   const navigateToNextRecord = () => {
     if (selectedEventIndex < filteredData.length - 1) {
       const newIndex = selectedEventIndex + 1;
-      setSelectedEventDetails(filteredData[newIndex]);
+      // Use events state to get the most up-to-date data (including any edits)
+      const updatedEvent = events.find(e => e.id === filteredData[newIndex].id) || filteredData[newIndex];
+      setSelectedEventDetails(updatedEvent);
       setSelectedEventIndex(newIndex);
     }
   };
@@ -676,10 +719,172 @@ export default function OrdersPage() {
   const navigateToPreviousRecord = () => {
     if (selectedEventIndex > 0) {
       const newIndex = selectedEventIndex - 1;
-      setSelectedEventDetails(filteredData[newIndex]);
+      // Use events state to get the most up-to-date data (including any edits)
+      const updatedEvent = events.find(e => e.id === filteredData[newIndex].id) || filteredData[newIndex];
+      setSelectedEventDetails(updatedEvent);
       setSelectedEventIndex(newIndex);
     }
   };
+
+  // Handle inline field editing
+  const handleStartEditing = (
+    fieldName: string, 
+    currentValue: string,
+    additionalIds: {
+      stripePaymentId?: string;
+      paymentIntentId?: string; 
+      modelRunId?: string;
+      stripeEventId?: number;
+    } = {}
+  ) => {
+    console.log('✏️ Starting inline edit:', { fieldName, currentValue, additionalIds });
+    setEditingField({
+      fieldName,
+      tempValue: currentValue,
+      originalValue: currentValue,
+      ...additionalIds
+    });
+  };
+
+  const handleCancelEditing = () => {
+    console.log('❌ Canceling inline edit');
+    setEditingField(null);
+    setIsSavingField(false);
+  };
+
+  const handleSaveInlineEdit = async () => {
+    if (!editingField || !selectedEventDetails) return;
+    
+    setIsSavingField(true);
+    console.log('💾 Saving inline edit:', editingField);
+    
+    try {
+      const success = await handleSaveField(
+        selectedEventDetails.id,
+        editingField.fieldName,
+        editingField.tempValue,
+        {
+          stripePaymentId: editingField.stripePaymentId,
+          paymentIntentId: editingField.paymentIntentId,
+          modelRunId: editingField.modelRunId,
+          stripeEventId: editingField.stripeEventId
+        }
+      );
+      
+      if (success) {
+        // Update the selected event details to reflect the change
+        setSelectedEventDetails(prev => prev ? {
+          ...prev,
+          [editingField.fieldName]: editingField.tempValue
+        } : null);
+        setEditingField(null);
+      }
+    } catch (error) {
+      console.error('❌ Error saving inline edit:', error);
+    } finally {
+      setIsSavingField(false);
+    }
+  };
+
+  const handleTempValueChange = (newValue: string) => {
+    if (editingField) {
+      setEditingField({
+        ...editingField,
+        tempValue: newValue
+      });
+    }
+  };
+
+  const handleSaveField = async (
+    eventId: number, 
+    fieldName: string, 
+    newValue: string,
+    fieldIds: {
+      stripePaymentId?: string;
+      paymentIntentId?: string; 
+      modelRunId?: string;
+      stripeEventId?: number;
+    }
+  ): Promise<boolean> => {
+    console.log('💾 handleSaveField called:', { eventId, fieldName, newValue, fieldIds });
+    
+    try {
+      let result;
+      
+      // Route to appropriate server action based on field name
+      switch (fieldName) {
+        case 'batch_id':
+        case 'batch_status':
+        case 'order_notes':
+          if (!fieldIds.stripePaymentId) {
+            console.error('❌ Missing stripePaymentId for batch management field');
+            return false;
+          }
+          if (fieldName === 'batch_id') {
+            result = await updateBatchId(fieldIds.stripePaymentId, newValue);
+          } else if (fieldName === 'batch_status') {
+            result = await updateOrderStatus(fieldIds.stripePaymentId, newValue);
+          } else {
+            result = await updateOrderNotes(fieldIds.stripePaymentId, newValue);
+          }
+          break;
+          
+        case 'pmo_order_number':
+        case 'pmo_shipping_address':
+        case 'pmo_email':
+          if (!fieldIds.paymentIntentId) {
+            console.error('❌ Missing paymentIntentId for physical mail order field');
+            return false;
+          }
+          const pmoFieldName = fieldName.replace('pmo_', '') as 'order_number' | 'shipping_address' | 'email';
+          result = await updatePhysicalMailOrder(fieldIds.paymentIntentId, pmoFieldName, newValue);
+          break;
+          
+        case 'mr_original_output_image_url':
+          if (!fieldIds.modelRunId) {
+            console.error('❌ Missing modelRunId for model run field');
+            return false;
+          }
+          result = await updateModelRun(fieldIds.modelRunId, 'original_output_image_url', newValue);
+          break;
+          
+        case 'created_timestamp_est':
+          if (!fieldIds.stripeEventId) {
+            console.error('❌ Missing stripeEventId for stripe event field');
+            return false;
+          }
+          result = await updateStripeEvent(fieldIds.stripeEventId, 'created_timestamp_est', newValue);
+          break;
+          
+        default:
+          console.error('❌ Unknown field name:', fieldName);
+          return false;
+      }
+      
+      console.log(`🔄 Update ${fieldName} result:`, result);
+      
+      if (result.success) {
+        // Update the local state to reflect the change
+        setEvents(prevEvents => 
+          prevEvents.map(event => 
+            event.id === eventId 
+              ? { ...event, [fieldName]: newValue }
+              : event
+          )
+        );
+        console.log(`✅ Successfully updated ${fieldName} locally`);
+        return true;
+      } else {
+        console.error(`❌ Failed to update ${fieldName}:`, result.error);
+        return false;
+      }
+    } catch (error) {
+      console.error(`❌ Error updating ${fieldName}:`, error);
+      return false;
+    }
+  };
+
+
 
   // Management status editing handlers
   const handleStatusChange = async (eventId: number, newStatus: string) => {
@@ -863,89 +1068,6 @@ export default function OrdersPage() {
           return <div className="text-xs">{addressText}</div>;
         }
         return <span className="text-gray-400">-</span>;
-      case 'batch_status':
-        // Status dropdown
-        const currentStatus = value ? String(value) : 'No Status';
-        const statusLabel = statusOptions.find(opt => opt.value === currentStatus)?.label || 'No Status';
-        
-        return (
-          <div data-status-field>
-            <Select
-              value={currentStatus}
-              onValueChange={(newStatus) => handleStatusChange(event.id, newStatus)}
-            >
-              <SelectTrigger className="w-full h-8 text-xs">
-              <SelectValue>
-                                 <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
-                   currentStatus === 'Approved Batchable' ? 'bg-green-500' :
-                   currentStatus === 'Contact User' ? 'bg-blue-500' :
-                   currentStatus === 'Alan Review' ? 'bg-yellow-500' :
-                   currentStatus === 'Question' ? 'bg-purple-500' :
-                   currentStatus === 'Hide' ? 'bg-red-500' :
-                   currentStatus === 'No Status' ? 'bg-gray-300' :
-                   'bg-gray-300'
-                 }`}></span>
-                {statusLabel}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {statusOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  <div className="flex items-center">
-                                         <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
-                       option.value === 'Approved Batchable' ? 'bg-green-500' :
-                       option.value === 'Contact User' ? 'bg-blue-500' :
-                       option.value === 'Alan Review' ? 'bg-yellow-500' :
-                       option.value === 'Question' ? 'bg-purple-500' :
-                       option.value === 'Hide' ? 'bg-red-500' :
-                       option.value === 'No Status' ? 'bg-gray-300' :
-                       'bg-gray-300'
-                     }`}></span>
-                    {option.label}
-                  </div>
-                </SelectItem>
-              ))}
-                         </SelectContent>
-           </Select>
-         </div>
-        );
-
-      case 'order_notes':
-        // Notes input field with database saving
-        return (
-          <input
-            type="text"
-            value={rowNotes[event.id] || event.order_notes || ''}
-            onChange={(e) => {
-              const newValue = e.target.value;
-              setRowNotes(prev => ({ ...prev, [event.id]: newValue }));
-              
-                             // Debounced save to database
-               const windowWithTimeouts = window as unknown as Window & { [key: string]: NodeJS.Timeout };
-               clearTimeout(windowWithTimeouts[`notesTimeout_${event.id}`]);
-               windowWithTimeouts[`notesTimeout_${event.id}`] = setTimeout(async () => {
-                 const payload = event.payload as { data?: { object?: { id?: string } }; payment_intent_id?: string };
-                 const stripePaymentId = payload?.data?.object?.id || 
-                                        payload?.payment_intent_id ||
-                                        event.transaction_id;
-                
-                if (stripePaymentId) {
-                  try {
-                    const result = await updateOrderNotes(stripePaymentId, newValue);
-                    if (!result.success) {
-                      console.error('Failed to save notes:', result.error);
-                    }
-                  } catch (error) {
-                    console.error('Error saving notes:', error);
-                  }
-                }
-              }, 1000); // Save after 1 second of no typing
-            }}
-            placeholder="Write notes..."
-            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-          />
-        );
-
       case 'payload':
       case 'pmo_items':
       case 'pmo_metadata':
@@ -1455,7 +1577,10 @@ export default function OrdersPage() {
                           </div>
                         </th>
                       ))}
-                      <th className="text-left p-3 font-medium text-xs whitespace-nowrap overflow-hidden text-ellipsis" style={{ width: '80px', fontSize: '8px' }}>Actions</th>
+                      <th className="text-left p-3 font-medium text-orange-600 whitespace-nowrap" style={{ width: '200px', fontSize: '10px' }}>Status</th>
+                      <th className="text-left p-3 font-medium text-orange-600 whitespace-nowrap" style={{ width: '200px', fontSize: '10px' }}>Notes</th>
+                      <th className="text-left p-3 font-medium text-orange-600 whitespace-nowrap" style={{ width: '200px', fontSize: '10px' }}>Batch Id</th>
+                      <th className="text-center p-3 font-medium text-xs whitespace-nowrap overflow-hidden text-ellipsis" style={{ width: '60px', fontSize: '8px' }}>Actions</th>
                       <th className="text-center p-3 font-medium text-xs whitespace-nowrap text-red-600" style={{ width: '60px', fontSize: '8px' }}>Delete</th>
                       <th className="text-center p-3 font-medium text-xs whitespace-nowrap" style={{ width: '60px', fontSize: '8px' }}>Send</th>
                     </tr>
@@ -1485,14 +1610,110 @@ export default function OrdersPage() {
                             {renderCellContent(event, columnConfig.name)}
                           </td>
                         ))}
-                        <td className="p-3 align-middle" style={{ width: '80px' }}>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleViewDetails(event, index)}
+                        <td className="p-3 align-middle" style={{ width: '200px' }}>
+                          <div data-status-field>
+                            <Select
+                              value={event.batch_status ? String(event.batch_status) : 'No Status'}
+                              onValueChange={(newStatus) => handleStatusChange(event.id, newStatus)}
+                            >
+                              <SelectTrigger className="w-full h-8 text-xs">
+                              <SelectValue>
+                                                 <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
+                                   (event.batch_status === 'Approved Batchable') ? 'bg-green-500' :
+                                   (event.batch_status === 'Contact User') ? 'bg-blue-500' :
+                                   (event.batch_status === 'Alan Review') ? 'bg-yellow-500' :
+                                   (event.batch_status === 'Question') ? 'bg-purple-500' :
+                                   (event.batch_status === 'Hide') ? 'bg-red-500' :
+                                   'bg-gray-300'
+                                 }`}></span>
+                                {statusOptions.find(opt => opt.value === (event.batch_status || 'No Status'))?.label || 'No Status'}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              {statusOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  <div className="flex items-center">
+                                                         <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
+                                       option.value === 'Approved Batchable' ? 'bg-green-500' :
+                                       option.value === 'Contact User' ? 'bg-blue-500' :
+                                       option.value === 'Alan Review' ? 'bg-yellow-500' :
+                                       option.value === 'Question' ? 'bg-purple-500' :
+                                       option.value === 'Hide' ? 'bg-red-500' :
+                                       option.value === 'No Status' ? 'bg-gray-300' :
+                                       'bg-gray-300'
+                                     }`}></span>
+                                    {option.label}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                                         </SelectContent>
+                           </Select>
+                         </div>
+                        </td>
+                        <td className="p-3 align-middle" style={{ width: '200px' }}>
+                          <input
+                            type="text"
+                            value={rowNotes[event.id] || event.order_notes || ''}
+                            onChange={(e) => {
+                              const newValue = e.target.value;
+                              setRowNotes(prev => ({ ...prev, [event.id]: newValue }));
+                              
+                                             // Debounced save to database
+                               const windowWithTimeouts = window as unknown as Window & { [key: string]: NodeJS.Timeout };
+                               clearTimeout(windowWithTimeouts[`notesTimeout_${event.id}`]);
+                               windowWithTimeouts[`notesTimeout_${event.id}`] = setTimeout(async () => {
+                                 const payload = event.payload as { data?: { object?: { id?: string } }; payment_intent_id?: string };
+                                 const stripePaymentId = payload?.data?.object?.id || 
+                                                        payload?.payment_intent_id ||
+                                                        event.transaction_id;
+                                
+                                if (stripePaymentId) {
+                                  try {
+                                    const result = await updateOrderNotes(stripePaymentId, newValue);
+                                    if (!result.success) {
+                                      console.error('Failed to save notes:', result.error);
+                                    }
+                                  } catch (error) {
+                                    console.error('Error saving notes:', error);
+                                  }
+                                }
+                              }, 1000); // Save after 1 second of no typing
+                            }}
+                            placeholder="Write notes..."
+                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </td>
+                        <td className="p-3 align-middle" style={{ width: '200px' }}>
+                          <div 
+                            className="text-xs text-gray-600 font-mono cursor-pointer hover:bg-gray-100 rounded px-1 py-0.5 transition-colors"
+                            onClick={async (e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              try {
+                                const textToCopy = event.batch_id || '';
+                                await navigator.clipboard.writeText(textToCopy);
+                                console.log('✅ Copied batch ID to clipboard:', textToCopy);
+                              } catch (err) {
+                                console.error('❌ Failed to copy batch ID:', err);
+                              }
+                            }}
+
+                            title="Click to copy • Double-click to edit batch ID"
                           >
-                            View Details
-                          </Button>
+                            {event.batch_id || <span className="text-gray-400">-</span>}
+                          </div>
+                        </td>
+                        <td className="text-center p-3 align-middle" style={{ width: '60px' }}>
+                          <button
+                            onClick={() => handleViewDetails(event, index)}
+                            className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded transition-colors"
+                            title="View details"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                          </button>
                         </td>
                         <td className="text-center p-3 align-middle" style={{ width: '60px' }}>
                           <button
@@ -1660,7 +1881,260 @@ export default function OrdersPage() {
             
             {selectedEventDetails && (
               <div className="space-y-6">
-                {/* Image Section - Only Original Output Image */}
+                {/* Editable Fields Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  
+                  {/* Left Column - Order Information */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-medium text-purple-800 mb-4">Order Information</h3>
+                    
+                    {/* Order Number */}
+                    <div className="bg-purple-50 rounded-lg p-4">
+                      <label className="text-sm font-medium text-purple-700 block mb-2">Order Number</label>
+                      <div className="bg-white rounded px-3 py-2 border">
+                        <EditableField
+                          fieldName="pmo_order_number"
+                          value={selectedEventDetails.pmo_order_number || ''}
+                          isEditing={editingField?.fieldName === 'pmo_order_number'}
+                          tempValue={editingField?.tempValue || ''}
+                          onStartEdit={() => {
+                            const paymentIntentId = selectedEventDetails.pmo_payment_intent_id ||
+                                                    selectedEventDetails.stripe_payment_id;
+                            if (!paymentIntentId) {
+                              console.error('❌ No payment intent ID found');
+                              return;
+                            }
+                            handleStartEditing('pmo_order_number', selectedEventDetails.pmo_order_number || '', { paymentIntentId });
+                          }}
+                          onCancelEdit={handleCancelEditing}
+                          onSaveEdit={handleSaveInlineEdit}
+                          onTempValueChange={handleTempValueChange}
+                          isSaving={isSavingField}
+                          placeholder="No order number"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Created Time */}
+                    <div className="bg-purple-50 rounded-lg p-4">
+                      <label className="text-sm font-medium text-purple-700 block mb-2">Created Time</label>
+                      <div className="bg-white rounded px-3 py-2 border">
+                        <EditableField
+                          fieldName="created_timestamp_est"
+                          value={selectedEventDetails.created_timestamp_est || ''}
+                          isEditing={editingField?.fieldName === 'created_timestamp_est'}
+                          tempValue={editingField?.tempValue || ''}
+                          onStartEdit={() => {
+                            handleStartEditing('created_timestamp_est', selectedEventDetails.created_timestamp_est || '', { stripeEventId: selectedEventDetails.id });
+                          }}
+                          onCancelEdit={handleCancelEditing}
+                          onSaveEdit={handleSaveInlineEdit}
+                          onTempValueChange={handleTempValueChange}
+                          isSaving={isSavingField}
+                          placeholder="No timestamp"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Email */}
+                    <div className="bg-purple-50 rounded-lg p-4">
+                      <label className="text-sm font-medium text-purple-700 block mb-2">Email</label>
+                      <div className="bg-white rounded px-3 py-2 border">
+                        <EditableField
+                          fieldName="pmo_email"
+                          value={selectedEventDetails.pmo_email || ''}
+                          isEditing={editingField?.fieldName === 'pmo_email'}
+                          tempValue={editingField?.tempValue || ''}
+                          onStartEdit={() => {
+                            const paymentIntentId = selectedEventDetails.pmo_payment_intent_id ||
+                                                    selectedEventDetails.stripe_payment_id;
+                            if (!paymentIntentId) {
+                              console.error('❌ No payment intent ID found');
+                              return;
+                            }
+                            handleStartEditing('pmo_email', selectedEventDetails.pmo_email || '', { paymentIntentId });
+                          }}
+                          onCancelEdit={handleCancelEditing}
+                          onSaveEdit={handleSaveInlineEdit}
+                          onTempValueChange={handleTempValueChange}
+                          isSaving={isSavingField}
+                          placeholder="No email"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Shipping Address */}
+                    <div className="bg-purple-50 rounded-lg p-4">
+                      <label className="text-sm font-medium text-purple-700 block mb-2">Shipping Address</label>
+                      <div className="bg-white rounded px-3 py-2 border">
+                        <EditableField
+                          fieldName="pmo_shipping_address"
+                          value={selectedEventDetails.pmo_shipping_address || ''}
+                          isEditing={editingField?.fieldName === 'pmo_shipping_address'}
+                          tempValue={editingField?.tempValue || ''}
+                          onStartEdit={() => {
+                            const paymentIntentId = selectedEventDetails.pmo_payment_intent_id ||
+                                                    selectedEventDetails.stripe_payment_id;
+                            if (!paymentIntentId) {
+                              console.error('❌ No payment intent ID found');
+                              return;
+                            }
+                            handleStartEditing('pmo_shipping_address', selectedEventDetails.pmo_shipping_address || '', { paymentIntentId });
+                          }}
+                          onCancelEdit={handleCancelEditing}
+                          onSaveEdit={handleSaveInlineEdit}
+                          onTempValueChange={handleTempValueChange}
+                          isSaving={isSavingField}
+                          placeholder="No shipping address"
+                          multiline={true}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column - Technical & Management */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-medium text-green-800 mb-4">Technical & Management</h3>
+                    
+                    {/* Original Output Image URL */}
+                    <div className="bg-green-50 rounded-lg p-4">
+                      <label className="text-sm font-medium text-green-700 block mb-2">Original Image URL</label>
+                      <div className="bg-white rounded px-3 py-2 border">
+                        <EditableField
+                          fieldName="mr_original_output_image_url"
+                          value={selectedEventDetails.mr_original_output_image_url || ''}
+                          isEditing={editingField?.fieldName === 'mr_original_output_image_url'}
+                          tempValue={editingField?.tempValue || ''}
+                          onStartEdit={() => {
+                            const modelRunId = selectedEventDetails.mr_id ||
+                                             selectedEventDetails.model_run_id;
+                            if (!modelRunId) {
+                              console.error('❌ No model run ID found');
+                              return;
+                            }
+                            handleStartEditing('mr_original_output_image_url', selectedEventDetails.mr_original_output_image_url || '', { modelRunId });
+                          }}
+                          onCancelEdit={handleCancelEditing}
+                          onSaveEdit={handleSaveInlineEdit}
+                          onTempValueChange={handleTempValueChange}
+                          isSaving={isSavingField}
+                          placeholder="No image URL"
+                          displayClassName="font-mono text-xs break-all"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Status */}
+                    <div className="bg-orange-50 rounded-lg p-4">
+                      <label className="text-sm font-medium text-orange-700 block mb-2">Status</label>
+                      <div className="bg-white rounded px-3 py-2 border">
+                        <EditableField
+                          fieldName="batch_status"
+                          value={selectedEventDetails.batch_status || ''}
+                          isEditing={editingField?.fieldName === 'batch_status'}
+                          tempValue={editingField?.tempValue || ''}
+                          onStartEdit={() => {
+                            const payload = selectedEventDetails.payload as { data?: { object?: { id?: string } }; payment_intent_id?: string };
+                            const stripePaymentId = selectedEventDetails.stripe_payment_id ||
+                                                   payload?.data?.object?.id || 
+                                                   payload?.payment_intent_id ||
+                                                   selectedEventDetails.transaction_id;
+                            if (!stripePaymentId) {
+                              console.error('❌ No stripe payment ID found');
+                              return;
+                            }
+                            handleStartEditing('batch_status', selectedEventDetails.batch_status || '', { stripePaymentId });
+                          }}
+                          onCancelEdit={handleCancelEditing}
+                          onSaveEdit={handleSaveInlineEdit}
+                          onTempValueChange={handleTempValueChange}
+                          isSaving={isSavingField}
+                          placeholder="No status"
+                          displayClassName="flex items-center"
+                          customDisplay={
+                            selectedEventDetails.batch_status ? (
+                              <div className="flex items-center">
+                                <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
+                                  (selectedEventDetails.batch_status === 'Approved Batchable') ? 'bg-green-500' :
+                                  (selectedEventDetails.batch_status === 'Contact User') ? 'bg-blue-500' :
+                                  (selectedEventDetails.batch_status === 'Alan Review') ? 'bg-yellow-500' :
+                                  (selectedEventDetails.batch_status === 'Question') ? 'bg-purple-500' :
+                                  (selectedEventDetails.batch_status === 'Hide') ? 'bg-red-500' :
+                                  'bg-gray-300'
+                                }`}></span>
+                                <span className="text-sm">{selectedEventDetails.batch_status}</span>
+                              </div>
+                            ) : null
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    {/* Notes */}
+                    <div className="bg-orange-50 rounded-lg p-4">
+                      <label className="text-sm font-medium text-orange-700 block mb-2">Notes</label>
+                      <div className="bg-white rounded px-3 py-2 border">
+                        <EditableField
+                          fieldName="order_notes"
+                          value={selectedEventDetails.order_notes || ''}
+                          isEditing={editingField?.fieldName === 'order_notes'}
+                          tempValue={editingField?.tempValue || ''}
+                          onStartEdit={() => {
+                            const payload = selectedEventDetails.payload as { data?: { object?: { id?: string } }; payment_intent_id?: string };
+                            const stripePaymentId = selectedEventDetails.stripe_payment_id ||
+                                                   payload?.data?.object?.id || 
+                                                   payload?.payment_intent_id ||
+                                                   selectedEventDetails.transaction_id;
+                            if (!stripePaymentId) {
+                              console.error('❌ No stripe payment ID found');
+                              return;
+                            }
+                            handleStartEditing('order_notes', selectedEventDetails.order_notes || '', { stripePaymentId });
+                          }}
+                          onCancelEdit={handleCancelEditing}
+                          onSaveEdit={handleSaveInlineEdit}
+                          onTempValueChange={handleTempValueChange}
+                          isSaving={isSavingField}
+                          placeholder="No notes"
+                          multiline={true}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Batch ID */}
+                    <div className="bg-orange-50 rounded-lg p-4">
+                      <label className="text-sm font-medium text-orange-700 block mb-2">Batch ID</label>
+                      <div className="bg-white rounded px-3 py-2 border">
+                        <EditableField
+                          fieldName="batch_id"
+                          value={selectedEventDetails.batch_id || ''}
+                          isEditing={editingField?.fieldName === 'batch_id'}
+                          tempValue={editingField?.tempValue || ''}
+                          onStartEdit={() => {
+                            const payload = selectedEventDetails.payload as { data?: { object?: { id?: string } }; payment_intent_id?: string };
+                            const stripePaymentId = selectedEventDetails.stripe_payment_id ||
+                                                   payload?.data?.object?.id || 
+                                                   payload?.payment_intent_id ||
+                                                   selectedEventDetails.transaction_id;
+                            if (!stripePaymentId) {
+                              console.error('❌ No stripe payment ID found');
+                              return;
+                            }
+                            handleStartEditing('batch_id', selectedEventDetails.batch_id || '', { stripePaymentId });
+                          }}
+                          onCancelEdit={handleCancelEditing}
+                          onSaveEdit={handleSaveInlineEdit}
+                          onTempValueChange={handleTempValueChange}
+                          isSaving={isSavingField}
+                          placeholder="No batch ID"
+                          displayClassName="font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Image Section */}
                 <div className="bg-gray-50 rounded-lg p-6">
                   <h3 className="text-lg font-medium mb-4">Original Output Image</h3>
                   <div className="flex justify-center">
@@ -1670,7 +2144,7 @@ export default function OrdersPage() {
                           src={selectedEventDetails.mr_original_output_image_url}
                           alt="Original Output"
                           className="rounded-lg border shadow-sm hover:shadow-md transition-shadow mx-auto"
-                          style={{ maxWidth: '600px', maxHeight: '600px', objectFit: 'contain' }}
+                          style={{ maxWidth: '600px', maxHeight: '400px', objectFit: 'contain' }}
                         />
                       </div>
                     ) : (
@@ -1678,14 +2152,6 @@ export default function OrdersPage() {
                         <p>No original output image available</p>
                       </div>
                     )}
-                  </div>
-                </div>
-
-                {/* Additional Content Area - Placeholder for future content */}
-                <div className="bg-blue-50 rounded-lg p-6 min-h-[200px]">
-                  <h3 className="text-lg font-medium text-blue-800 mb-4">Additional Information</h3>
-                  <div className="text-gray-600 text-center py-8">
-                    <p>Content area ready for additional information...</p>
                   </div>
                 </div>
               </div>
@@ -1712,6 +2178,8 @@ export default function OrdersPage() {
             </div>
           </div>
         )}
+
+
       </div>
     </div>
   );

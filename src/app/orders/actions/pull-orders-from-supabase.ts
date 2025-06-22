@@ -146,6 +146,7 @@ export interface CombinedOrderEvent extends StripeCapturedEvent {
   // Batch management fields
   batch_status: string | null;
   order_notes: string | null;
+  batch_id: string | null;
 }
 
 export async function fetchStripeEventColumns(): Promise<string[]> {
@@ -566,6 +567,7 @@ export async function fetchPhysicalStripeEvents(page: number = 1, limit: number 
         // Batch management fields - now reads from database
         batch_status: managementRecord.status || 'No Status',
         order_notes: managementRecord.order_notes || null,
+        batch_id: managementRecord.batch_id || null,
       };
     });
 
