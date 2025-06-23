@@ -29,6 +29,19 @@ export default function AdminProfilesPage() {
   const [editingProfile, setEditingProfile] = useState<string | null>(null);
   const [editNotes, setEditNotes] = useState("");
 
+  // Toast state
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
+
+  // Helper function to show toast
+  const showToastMessage = (message: string, type: 'success' | 'error' = 'success') => {
+    setToastMessage(message);
+    setToastType(type);
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 3000);
+  };
+
   useEffect(() => {
     loadProfiles();
   }, []);
@@ -60,27 +73,29 @@ export default function AdminProfilesPage() {
         setNewNotes("");
         setShowCreateForm(false);
       } else {
-        alert(`Failed to create profile: ${result.error}`);
+        showToastMessage(`Failed to create profile: ${result.error}`, 'error');
       }
     } catch (error) {
       console.error("Error creating profile:", error);
-      alert("An error occurred while creating the profile");
+      showToastMessage("An error occurred while creating the profile", 'error');
     }
   };
 
   const handleDeleteProfile = async (adminName: string) => {
-    if (!confirm(`Are you sure you want to delete the profile "${adminName}"?`)) return;
+    // Simple deletion without confirmation modal for now
+    showToastMessage(`Deleting profile "${adminName}"...`, 'success');
 
     try {
       const result = await deleteAdminProfile(adminName);
       if (result.success) {
         await loadProfiles(); // Reload to get fresh data
+        showToastMessage(`Successfully deleted profile "${adminName}"`, 'success');
       } else {
-        alert(`Failed to delete profile: ${result.error}`);
+        showToastMessage(`Failed to delete profile: ${result.error}`, 'error');
       }
     } catch (error) {
       console.error("Error deleting profile:", error);
-      alert("An error occurred while deleting the profile");
+      showToastMessage("An error occurred while deleting the profile", 'error');
     }
   };
 
@@ -94,12 +109,13 @@ export default function AdminProfilesPage() {
         await loadProfiles(); // Reload to get fresh data
         setEditingProfile(null);
         setEditNotes("");
+        showToastMessage("Notes updated successfully", 'success');
       } else {
-        alert(`Failed to update notes: ${result.error}`);
+        showToastMessage(`Failed to update notes: ${result.error}`, 'error');
       }
     } catch (error) {
       console.error("Error updating notes:", error);
-      alert("An error occurred while updating notes");
+      showToastMessage("An error occurred while updating notes", 'error');
     }
   };
 
@@ -328,6 +344,26 @@ export default function AdminProfilesPage() {
           <div>• Default admin: {profiles.length > 0 ? profiles[0].admin_name : "None"}</div>
         </div>
       </Card>
+
+      {/* Toast Notification */}
+      {showToast && (
+        <div className={`fixed bottom-4 right-4 text-white px-4 py-2 rounded-md shadow-lg z-50 transition-all duration-300 ${
+          toastType === 'success' ? 'bg-green-600' : 'bg-red-600'
+        }`}>
+          <div className="flex items-center gap-2">
+            {toastType === 'success' ? (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            )}
+            {toastMessage}
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

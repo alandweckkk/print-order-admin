@@ -71,6 +71,8 @@ export default function OrdersPage() {
 
   // Add notes state for each row
   const [rowNotes, setRowNotes] = useState<Record<number, string>>({});
+  const [focusedNotesField, setFocusedNotesField] = useState<number | null>(null);
+  const [savingNotes, setSavingNotes] = useState<Record<number, boolean>>({});
 
   // Add inline editing state for modal fields
   const [editingField, setEditingField] = useState<{
@@ -982,6 +984,51 @@ export default function OrdersPage() {
         ...editingField,
         tempValue: newValue
       });
+    }
+  };
+
+  // Manual save notes function
+  const handleSaveNotes = async (eventId: number, notes: string) => {
+    const event = filteredData.find(e => e.id === eventId);
+    if (!event) return;
+
+    setSavingNotes(prev => ({ ...prev, [eventId]: true }));
+
+    try {
+      const payload = event.payload as { data?: { object?: { id?: string } }; payment_intent_id?: string };
+      const stripePaymentId = payload?.data?.object?.id || 
+                             payload?.payment_intent_id ||
+                             event.transaction_id;
+
+      if (stripePaymentId) {
+        const result = await updateOrderNotes(stripePaymentId, notes);
+        if (result.success) {
+          setToastMessage('Notes saved successfully');
+          setToastType('success');
+          setShowToast(true);
+          setTimeout(() => setShowToast(false), 3000);
+          setFocusedNotesField(null); // Hide save button after successful save
+        } else {
+          console.error('Failed to save notes:', result.error);
+          setToastMessage('Failed to save notes');
+          setToastType('error');
+          setShowToast(true);
+          setTimeout(() => setShowToast(false), 3000);
+        }
+      } else {
+        setToastMessage('Could not find payment ID to save notes');
+        setToastType('error');
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3000);
+      }
+    } catch (error) {
+      console.error('Error saving notes:', error);
+      setToastMessage('Error saving notes');
+      setToastType('error');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    } finally {
+      setSavingNotes(prev => ({ ...prev, [eventId]: false }));
     }
   };
 
@@ -1921,37 +1968,41 @@ export default function OrdersPage() {
                          </div>
                         </td>
                         <td className="p-3 align-middle" style={{ width: '200px' }}>
-                          <input
-                            type="text"
-                            value={rowNotes[event.id] || event.order_notes || ''}
-                            onChange={(e) => {
-                              const newValue = e.target.value;
-                              setRowNotes(prev => ({ ...prev, [event.id]: newValue }));
-                              
-                                             // Debounced save to database
-                               const windowWithTimeouts = window as unknown as Window & { [key: string]: NodeJS.Timeout };
-                               clearTimeout(windowWithTimeouts[`notesTimeout_${event.id}`]);
-                               windowWithTimeouts[`notesTimeout_${event.id}`] = setTimeout(async () => {
-                                 const payload = event.payload as { data?: { object?: { id?: string } }; payment_intent_id?: string };
-                                 const stripePaymentId = payload?.data?.object?.id || 
-                                                        payload?.payment_intent_id ||
-                                                        event.transaction_id;
-                                
-                                if (stripePaymentId) {
-                                  try {
-                                    const result = await updateOrderNotes(stripePaymentId, newValue);
-                                    if (!result.success) {
-                                      console.error('Failed to save notes:', result.error);
-                                    }
-                                  } catch (error) {
-                                    console.error('Error saving notes:', error);
-                                  }
-                                }
-                              }, 1000); // Save after 1 second of no typing
-                            }}
-                            placeholder="Write notes..."
-                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          />
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={rowNotes[event.id] || event.order_notes || ''}
+                              onChange={(e) => {
+                                const newValue = e.target.value;
+                                setRowNotes(prev => ({ ...prev, [event.id]: newValue }));
+                              }}
+                              onFocus={() => setFocusedNotesField(event.id)}
+                              onBlur={() => {
+                                // Hide save button after a short delay to allow save button click
+                                setTimeout(() => setFocusedNotesField(null), 150);
+                              }}
+                              placeholder="Write notes..."
+                              className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 pr-8"
+                            />
+                            {focusedNotesField === event.id && (
+                              <button
+                                onClick={() => handleSaveNotes(event.id, rowNotes[event.id] || event.order_notes || '')}
+                                disabled={savingNotes[event.id]}
+                                className="absolute right-1 top-1/2 transform -translate-y-1/2 p-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors disabled:opacity-50"
+                                title="Save notes"
+                              >
+                                {savingNotes[event.id] ? (
+                                  <svg className="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                  </svg>
+                                ) : (
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                  </svg>
+                                )}
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="p-3 align-middle" style={{ width: '200px' }}>
                           <div 

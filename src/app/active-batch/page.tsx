@@ -669,6 +669,19 @@ export default function ActiveBatchPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Toast state
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
+
+  // Helper function to show toast
+  const showToastMessage = (message: string, type: 'success' | 'error' = 'success') => {
+    setToastMessage(message);
+    setToastType(type);
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 3000);
+  };
+
   // Load batches from database
   const loadBatches = useCallback(async () => {
     setIsLoading(true);
@@ -780,7 +793,7 @@ export default function ActiveBatchPage() {
       
       if (!result.success) {
         console.error('Failed to remove order from batch:', result.error);
-        alert('Failed to remove order from batch. Please try again.');
+        showToastMessage('Failed to remove order from batch. Please try again.', 'error');
         return;
       }
 
@@ -796,7 +809,7 @@ export default function ActiveBatchPage() {
       
     } catch (error) {
       console.error('Error removing order:', error);
-      alert('An error occurred while removing the order. Please try again.');
+      showToastMessage('An error occurred while removing the order. Please try again.', 'error');
     }
   };
 
@@ -805,7 +818,7 @@ export default function ActiveBatchPage() {
     const order = orders.find(o => o.id === orderId);
     if (!order) {
       console.error('Order not found:', orderId);
-      alert('Order not found. Please try again.');
+      showToastMessage('Order not found. Please try again.', 'error');
       return;
     }
 
@@ -817,7 +830,7 @@ export default function ActiveBatchPage() {
       
       if (!result.success) {
         console.error('Failed to update shipping address:', result.error);
-        alert(`Failed to update address: ${result.error}`);
+        showToastMessage(`Failed to update address: ${result.error}`, 'error');
         return;
       }
 
@@ -829,18 +842,18 @@ export default function ActiveBatchPage() {
       ));
       
       console.log(`✅ Successfully updated shipping address for order ${order.orderNumber}`);
-      alert(`Address updated successfully for order ${order.orderNumber}!`);
+      showToastMessage(`Address updated successfully for order ${order.orderNumber}!`, 'success');
       
     } catch (error) {
       console.error('Error updating address:', error);
-      alert('An unexpected error occurred while updating the address. Please try again.');
+      showToastMessage('An unexpected error occurred while updating the address. Please try again.', 'error');
     }
   };
 
   const handleCreateStickerSheets = async () => {
     if (!activeBatch || !orders || orders.length === 0) {
       console.error('No active batch or orders found');
-      alert('No batch or orders to process');
+      showToastMessage('No batch or orders to process', 'error');
       return;
     }
 
@@ -914,14 +927,14 @@ export default function ActiveBatchPage() {
       console.log(`✅ Successfully processed ${processedCount} sticker sheets`);
       
       if (processedCount > 0) {
-        alert(`Successfully created ${processedCount} sticker sheets!`);
+        showToastMessage(`Successfully created ${processedCount} sticker sheets!`, 'success');
       } else {
-        alert('No sticker sheets were created. Please check the console for errors.');
+        showToastMessage('No sticker sheets were created. Please check the console for errors.', 'error');
       }
 
     } catch (error) {
       console.error('❌ Error creating sticker sheets:', error);
-      alert('An error occurred while creating sticker sheets. Please try again.');
+      showToastMessage('An error occurred while creating sticker sheets. Please try again.', 'error');
     } finally {
       setIsCreatingStickers(false);
     }
@@ -930,7 +943,7 @@ export default function ActiveBatchPage() {
   const handleDownloadBatchImages = async () => {
     if (!activeBatch || !orders || orders.length === 0) {
       console.error('No active batch or orders found');
-      alert('No batch or images to download');
+      showToastMessage('No batch or images to download', 'error');
       return;
     }
 
@@ -985,7 +998,7 @@ export default function ActiveBatchPage() {
       }
 
       if (successCount === 0) {
-        alert('No images could be downloaded. Please check the image URLs.');
+        showToastMessage('No images could be downloaded. Please check the image URLs.', 'error');
         return;
       }
 
@@ -1007,21 +1020,21 @@ export default function ActiveBatchPage() {
       console.log(`✅ Successfully downloaded ${successCount} images in zip file`);
       
       if (failCount > 0) {
-        alert(`Download completed! ${successCount} images downloaded successfully. ${failCount} images failed to download.`);
+        showToastMessage(`Download completed! ${successCount} images downloaded successfully. ${failCount} images failed to download.`, 'success');
       } else {
-        alert(`Successfully downloaded all ${successCount} sticker sheet images!`);
+        showToastMessage(`Successfully downloaded all ${successCount} sticker sheet images!`, 'success');
       }
 
     } catch (error) {
       console.error('❌ Error creating zip download:', error);
-      alert('An error occurred while creating the download. Please try again.');
+      showToastMessage('An error occurred while creating the download. Please try again.', 'error');
     }
   };
 
   const handleDownloadEnvelopeImages = async () => {
     if (!activeBatch || !orders || orders.length === 0) {
       console.error('No active batch or orders found');
-      alert('No batch or envelopes to download');
+      showToastMessage('No batch or envelopes to download', 'error');
       return;
     }
 
@@ -1139,7 +1152,7 @@ export default function ActiveBatchPage() {
       }
 
       if (successCount === 0) {
-        alert('No envelope images could be generated.');
+        showToastMessage('No envelope images could be generated.', 'error');
         return;
       }
 
@@ -1161,14 +1174,14 @@ export default function ActiveBatchPage() {
       console.log(`✅ Successfully downloaded ${successCount} envelope images in zip file`);
       
       if (failCount > 0) {
-        alert(`Download completed! ${successCount} envelope images downloaded successfully. ${failCount} envelopes failed to generate.`);
+        showToastMessage(`Download completed! ${successCount} envelope images downloaded successfully. ${failCount} envelopes failed to generate.`, 'success');
       } else {
-        alert(`Successfully downloaded all ${successCount} envelope images!`);
+        showToastMessage(`Successfully downloaded all ${successCount} envelope images!`, 'success');
       }
 
     } catch (error) {
       console.error('❌ Error creating envelope zip download:', error);
-      alert('An error occurred while creating the envelope download. Please try again.');
+      showToastMessage('An error occurred while creating the envelope download. Please try again.', 'error');
     }
   };
 
@@ -1452,6 +1465,26 @@ export default function ActiveBatchPage() {
           )}
         </div>
       </div>
+
+      {/* Toast Notification */}
+      {showToast && (
+        <div className={`fixed bottom-4 right-4 text-white px-4 py-2 rounded-md shadow-lg z-50 transition-all duration-300 ${
+          toastType === 'success' ? 'bg-green-600' : 'bg-red-600'
+        }`}>
+          <div className="flex items-center gap-2">
+            {toastType === 'success' ? (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            )}
+            {toastMessage}
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

@@ -14,6 +14,19 @@ export default function Notes({ className = "" }: NotesProps) {
   const [notes, setNotes] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
+  // Toast state
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
+
+  // Helper function to show toast
+  const showToastMessage = (message: string, type: 'success' | 'error' = 'success') => {
+    setToastMessage(message);
+    setToastType(type);
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 3000);
+  };
+
   // Load notes from localStorage on mount
   useEffect(() => {
     try {
@@ -44,7 +57,7 @@ export default function Notes({ className = "" }: NotesProps) {
       }
     } catch (error) {
       console.error('Error saving notes to localStorage:', error);
-      alert('Failed to save notes');
+      showToastMessage('Failed to save notes', 'error');
     }
   };
 
@@ -118,6 +131,26 @@ export default function Notes({ className = "" }: NotesProps) {
                 />
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {showToast && (
+        <div className={`fixed bottom-4 right-4 text-white px-4 py-2 rounded-md shadow-lg z-50 transition-all duration-300 ${
+          toastType === 'success' ? 'bg-green-600' : 'bg-red-600'
+        }`}>
+          <div className="flex items-center gap-2">
+            {toastType === 'success' ? (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            )}
+            {toastMessage}
           </div>
         </div>
       )}
