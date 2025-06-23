@@ -267,26 +267,41 @@ export default function Navigation() {
           >
             Active Batch
           </Button>
+
+
+        </div>
+        <div className="flex items-center gap-2 relative">
+          {/* Sync and Cleanup Buttons */}
           <Button 
             variant="outline"
-            size="lg"
+            size="sm"
             className="border-gray-300 text-gray-700 hover:bg-gray-50 relative"
             onClick={handleSyncNewOrders}
             disabled={isSyncing}
           >
             {isSyncing ? "Syncing..." : "Sync New Orders"}
           </Button>
+          <Button 
+            variant={isActivePage("/address-cleanup") ? "default" : "outline"}
+            size="sm"
+            className={isActivePage("/address-cleanup")
+              ? "bg-orange-600 hover:bg-orange-700 text-white"
+              : "border-orange-300 text-orange-700 hover:bg-orange-50"
+            }
+            onClick={() => handleNavigation("/address-cleanup")}
+          >
+            Address Cleanup
+          </Button>
+          
+          {/* Notes Button */}
+          <Notes />
           
           {/* Sync Status Message */}
           {syncMessage && (
-            <div className="absolute top-full left-0 mt-2 px-3 py-2 bg-white border border-gray-200 rounded-md shadow-lg text-sm whitespace-nowrap z-50">
+            <div className="absolute top-full right-0 mt-2 px-3 py-2 bg-white border border-gray-200 rounded-md shadow-lg text-sm whitespace-nowrap z-50">
               {syncMessage}
             </div>
           )}
-        </div>
-        <div className="flex items-center gap-4 relative">
-          {/* Notes Button */}
-          <Notes />
           
           {/* Admin Profiles Button */}
           <Button
