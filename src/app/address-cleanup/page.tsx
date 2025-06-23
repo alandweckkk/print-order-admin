@@ -71,7 +71,7 @@ export default function AddressCleanupPage() {
         });
         setOrders(transformedOrders);
       } else {
-        setError(result.error);
+        setError(result.error || 'Unknown error occurred');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load orders');
@@ -301,9 +301,9 @@ export default function AddressCleanupPage() {
           <div>
             <h3 className="font-medium text-orange-800">Instructions</h3>
             <p className="text-orange-700 text-sm mt-1">
-              Transformation rules have been applied automatically. The "Transformed JSONB" column shows 
+              Transformation rules have been applied automatically. The &quot;Transformed JSONB&quot; column shows 
               proposed changes for records that need updates. Click ✓ to WRITE the transformed JSONB 
-              to Supabase immediately. Use "Need Review Only" to focus on records requiring attention.
+              to Supabase immediately. Use &quot;Need Review Only&quot; to focus on records requiring attention.
             </p>
           </div>
         </div>
@@ -366,7 +366,7 @@ export default function AddressCleanupPage() {
                          {stateInfo.hasIssues && (
                            <div className="flex flex-wrap gap-1">
                              <Badge variant="outline" className="text-xs bg-yellow-50 text-yellow-700 border-yellow-200">
-                               State: "{order.current.state}"
+                               State: &quot;{order.current.state}&quot;
                              </Badge>
                              {stateInfo.issues.map(issue => (
                                <Badge key={issue} variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200">

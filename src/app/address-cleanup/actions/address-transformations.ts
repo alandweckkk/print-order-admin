@@ -168,9 +168,10 @@ export function transformAddress(address: PhysicalMailOrder['shipping_address'])
   
   // Trim all string fields and track changes
   Object.keys(transformed).forEach(key => {
-    const value = transformed[key as keyof typeof transformed];
+    const typedKey = key as keyof typeof transformed;
+    const value = transformed[typedKey];
     if (typeof value === 'string' && value !== value.trim()) {
-      transformed[key as keyof typeof transformed] = value.trim() as any;
+      (transformed as Record<string, unknown>)[key] = value.trim();
       changes.push(`Trimmed spaces from ${key}`);
     }
   });
