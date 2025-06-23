@@ -41,6 +41,7 @@ import { fetchBatchOrders } from './actions/fetch-batch-orders';
 import { updateStickerSheetUrl } from './actions/update-sticker-sheet-url';
 import { removeOrderFromBatch } from './actions/remove-order-from-batch';
 import { updateShippingAddress } from './actions/update-shipping-address';
+import { updateOrderStatus } from './actions/update-order-status';
 
 // Note: This page is temporarily disabled while transitioning to database-based batches
 // TODO: Implement database-based batch loading to replace localStorage functionality
@@ -96,6 +97,7 @@ interface OrderCardProps {
   order: Order;
   onRemove: (id: string) => void;
   onUpdateAddress?: (orderId: string, newAddress: ShippingAddress) => Promise<void>;
+  onUpdateStatus?: (orderId: string, newStatus: string) => Promise<void>;
   className?: string;
   size?: 'small' | 'medium' | 'large' | 'horizontal-large' | 'one-by-one-huge';
 }
@@ -244,7 +246,7 @@ function EnvelopeCanvas({ shippingAddress, className = "", width = 350, height =
   );
 }
 
-function OrderCard({ order, onRemove, onUpdateAddress, className = "", size = 'medium' }: OrderCardProps) {
+function OrderCard({ order, onRemove, onUpdateAddress, onUpdateStatus, className = "", size = 'medium' }: OrderCardProps) {
   const [isEditingAddress, setIsEditingAddress] = useState(false);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [editedAddress, setEditedAddress] = useState<ShippingAddress>({
@@ -347,12 +349,67 @@ function OrderCard({ order, onRemove, onUpdateAddress, className = "", size = 'm
         <div className="flex items-center justify-between pb-4 border-b border-gray-200 mb-4">
           <div className="flex items-center gap-3">
             <h3 className="font-semibold text-gray-900">Order #{order.orderNumber}</h3>
-            <Badge 
-              variant={order.status === "Ready" ? "default" : "secondary"}
-              className={order.status === "Ready" ? "bg-green-100 text-green-800" : ""}
+            <Select 
+              value={order.status} 
+              onValueChange={(newStatus) => onUpdateStatus?.(order.id, newStatus)}
             >
-              {order.status}
-            </Badge>
+              <SelectTrigger className="w-[160px] h-8">
+                <SelectValue>
+                  <div className="flex items-center">
+                    <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
+                      order.status === 'Approved Batchable' ? 'bg-green-500' :
+                      order.status === 'Contact User' ? 'bg-blue-500' :
+                      order.status === 'Alan Review' ? 'bg-yellow-500' :
+                      order.status === 'Question' ? 'bg-purple-500' :
+                      order.status === 'Hide' ? 'bg-red-500' :
+                      order.status === 'Batch In Progress' ? 'bg-orange-500' :
+                      order.status === 'Sticker Printed' ? 'bg-teal-500' :
+                      order.status === 'Sticker Printing Ready' ? 'bg-cyan-500' :
+                      order.status === 'Printed' ? 'bg-lime-500' :
+                      order.status === 'Done' ? 'bg-emerald-500' :
+                      order.status === 'No Status' ? 'bg-gray-300' :
+                      'bg-gray-300'
+                    }`}></span>
+                    <span className="text-xs">{order.status}</span>
+                  </div>
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {[
+                  { value: 'No Status', label: 'No Status' },
+                  { value: 'Approved Batchable', label: 'Approved Batchable' },
+                  { value: 'Contact User', label: 'Contact User' },
+                  { value: 'Alan Review', label: 'Alan Review' },
+                  { value: 'Question', label: 'Question' },
+                  { value: 'Hide', label: 'Hide' },
+                  { value: 'Batch In Progress', label: 'Batch In Progress' },
+                  { value: 'Sticker Printed', label: 'Sticker Printed' },
+                  { value: 'Sticker Printing Ready', label: 'Sticker Printing Ready' },
+                  { value: 'Printed', label: 'Printed' },
+                  { value: 'Done', label: 'Done' }
+                ].map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    <div className="flex items-center">
+                      <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
+                        option.value === 'Approved Batchable' ? 'bg-green-500' :
+                        option.value === 'Contact User' ? 'bg-blue-500' :
+                        option.value === 'Alan Review' ? 'bg-yellow-500' :
+                        option.value === 'Question' ? 'bg-purple-500' :
+                        option.value === 'Hide' ? 'bg-red-500' :
+                        option.value === 'Batch In Progress' ? 'bg-orange-500' :
+                        option.value === 'Sticker Printed' ? 'bg-teal-500' :
+                        option.value === 'Sticker Printing Ready' ? 'bg-cyan-500' :
+                        option.value === 'Printed' ? 'bg-lime-500' :
+                        option.value === 'Done' ? 'bg-emerald-500' :
+                        option.value === 'No Status' ? 'bg-gray-300' :
+                        'bg-gray-300'
+                      }`}></span>
+                      {option.label}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex items-center gap-2">
             <Dialog open={isEditingAddress} onOpenChange={setIsEditingAddress}>
@@ -674,12 +731,40 @@ export default function ActiveBatchPage() {
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error'>('success');
 
+  // Status filter state
+  const [statusFilter, setStatusFilter] = useState<string>('Show All');
+
+  // Status options matching the database values
+  const statusOptions = [
+    { value: 'No Status', label: 'No Status' },
+    { value: 'Approved Batchable', label: 'Approved Batchable' },
+    { value: 'Contact User', label: 'Contact User' },
+    { value: 'Alan Review', label: 'Alan Review' },
+    { value: 'Question', label: 'Question' },
+    { value: 'Hide', label: 'Hide' },
+    { value: 'Batch In Progress', label: 'Batch In Progress' },
+    { value: 'Sticker Printed', label: 'Sticker Printed' },
+    { value: 'Sticker Printing Ready', label: 'Sticker Printing Ready' },
+    { value: 'Printed', label: 'Printed' },
+    { value: 'Done', label: 'Done' }
+  ];
+
   // Helper function to show toast
   const showToastMessage = (message: string, type: 'success' | 'error' = 'success') => {
     setToastMessage(message);
     setToastType(type);
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3000);
+  };
+
+  // Handle status filter changes
+  const handleStatusFilterChange = (newFilter: string) => {
+    setStatusFilter(newFilter);
+  };
+
+  // Clear status filter
+  const clearStatusFilter = () => {
+    setStatusFilter('Show All');
   };
 
   // Load batches from database
@@ -714,9 +799,10 @@ export default function ActiveBatchPage() {
   }, [selectedBatchId]);
 
   // Load orders for a specific batch
-  const loadBatchOrders = useCallback(async (batchId: string) => {
+  const loadBatchOrders = useCallback(async (batchId: string, statusFilterValue?: string) => {
     try {
-      const result = await fetchBatchOrders(batchId);
+      const filterValue = statusFilterValue || statusFilter;
+      const result = await fetchBatchOrders(batchId, filterValue === 'Show All' ? undefined : filterValue);
       
       if (result.error) {
         console.error('Error loading batch orders:', result.error);
@@ -732,7 +818,7 @@ export default function ActiveBatchPage() {
           stickerSheetUrl: batchOrder.sticker_sheet_url || batchOrder.mr_original_output_image_url || batchOrder.mr_output_image_url || "/api/placeholder/400/500",
           originalImageUrl: batchOrder.mr_original_output_image_url || batchOrder.mr_output_image_url || "/api/placeholder/400/500",
           envelopeUrl: "/api/placeholder/300/200",
-          status: batchOrder.pmo_status === "shipped" ? "Printed" : "Ready",
+          status: batchOrder.status || 'No Status', // Use real status from z_print_order_management
           isProcessed: !!batchOrder.sticker_sheet_url, // Mark as processed if sticker sheet URL exists
           shippingAddress: batchOrder.pmo_shipping_address
         }));
@@ -744,7 +830,7 @@ export default function ActiveBatchPage() {
       console.error('Error loading batch orders:', err);
       setOrders([]);
     }
-  }, []);
+  }, [statusFilter]);
 
   // Select a specific batch
   const selectBatch = useCallback(async (batchId: string) => {
@@ -778,6 +864,13 @@ export default function ActiveBatchPage() {
       setViewMode('one-by-one');
     }
   }, [isMobile, viewMode]);
+
+  // Reload orders when status filter changes
+  useEffect(() => {
+    if (selectedBatchId) {
+      loadBatchOrders(selectedBatchId);
+    }
+  }, [statusFilter, selectedBatchId, loadBatchOrders]);
 
   const handleRemoveOrder = async (id: string) => {
     // Find the order to get its stripe payment ID
@@ -847,6 +940,43 @@ export default function ActiveBatchPage() {
     } catch (error) {
       console.error('Error updating address:', error);
       showToastMessage('An unexpected error occurred while updating the address. Please try again.', 'error');
+    }
+  };
+
+  const handleUpdateStatus = async (orderId: string, newStatus: string) => {
+    // Find the order to get its stripe payment ID
+    const order = orders.find(o => o.id === orderId);
+    if (!order) {
+      console.error('Order not found:', orderId);
+      showToastMessage('Order not found. Please try again.', 'error');
+      return;
+    }
+
+    try {
+      console.log(`🔄 Updating status for order ${order.orderNumber} to "${newStatus}"...`);
+      
+      // Update Supabase with the new status
+      const result = await updateOrderStatus(order.stripePaymentId, newStatus);
+      
+      if (!result.success) {
+        console.error('Failed to update order status:', result.error);
+        showToastMessage(`Failed to update status: ${result.error}`, 'error');
+        return;
+      }
+
+      // Update local state on successful database update
+      setOrders(prev => prev.map(o => 
+        o.id === orderId 
+          ? { ...o, status: newStatus }
+          : o
+      ));
+      
+      console.log(`✅ Successfully updated status for order ${order.orderNumber} to "${newStatus}"`);
+      showToastMessage(`Status updated to "${newStatus}" for order ${order.orderNumber}!`, 'success');
+      
+    } catch (error) {
+      console.error('Error updating status:', error);
+      showToastMessage('An unexpected error occurred while updating the status. Please try again.', 'error');
     }
   };
 
@@ -1270,7 +1400,7 @@ export default function ActiveBatchPage() {
         {/* Sticky Top Bar */}
         <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 sm:px-8 py-4 shadow-sm">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            {/* Batch Selection Dropdown */}
+            {/* Batch Selection and Status Filter */}
             <div className="flex items-center gap-2">
               <Select 
                 value={selectedBatchId} 
@@ -1292,6 +1422,80 @@ export default function ActiveBatchPage() {
                   ))}
                 </SelectContent>
               </Select>
+
+              {/* Status Filter Dropdown */}
+              <div className="flex items-center gap-1">
+                <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
+                  <SelectTrigger className="w-[220px] h-9">
+                    <SelectValue placeholder="Filter by status...">
+                      {statusFilter && statusFilter !== 'Show All' && (
+                        <div className="flex items-center">
+                          <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
+                            statusFilter === 'Approved Batchable' ? 'bg-green-500' :
+                            statusFilter === 'Contact User' ? 'bg-blue-500' :
+                            statusFilter === 'Alan Review' ? 'bg-yellow-500' :
+                            statusFilter === 'Question' ? 'bg-purple-500' :
+                            statusFilter === 'Hide' ? 'bg-red-500' :
+                            statusFilter === 'Batch In Progress' ? 'bg-orange-500' :
+                            statusFilter === 'Sticker Printed' ? 'bg-teal-500' :
+                            statusFilter === 'Sticker Printing Ready' ? 'bg-cyan-500' :
+                            statusFilter === 'Printed' ? 'bg-lime-500' :
+                            statusFilter === 'Done' ? 'bg-emerald-500' :
+                            statusFilter === 'No Status' ? 'bg-gray-300' :
+                            'bg-gray-300'
+                          }`}></span>
+                          {statusOptions.find(opt => opt.value === statusFilter)?.label || statusFilter}
+                        </div>
+                      )}
+                      {(!statusFilter || statusFilter === 'Show All') && (
+                        <span className="text-gray-500">Show All</span>
+                      )}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Show All">
+                      <div className="flex items-center">
+                        <span className="inline-block w-2 h-2 rounded-full mr-2 bg-gray-200"></span>
+                        Show All
+                      </div>
+                    </SelectItem>
+                    {statusOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <div className="flex items-center">
+                          <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
+                            option.value === 'Approved Batchable' ? 'bg-green-500' :
+                            option.value === 'Contact User' ? 'bg-blue-500' :
+                            option.value === 'Alan Review' ? 'bg-yellow-500' :
+                            option.value === 'Question' ? 'bg-purple-500' :
+                            option.value === 'Hide' ? 'bg-red-500' :
+                            option.value === 'Batch In Progress' ? 'bg-orange-500' :
+                            option.value === 'Sticker Printed' ? 'bg-teal-500' :
+                            option.value === 'Sticker Printing Ready' ? 'bg-cyan-500' :
+                            option.value === 'Printed' ? 'bg-lime-500' :
+                            option.value === 'Done' ? 'bg-emerald-500' :
+                            option.value === 'No Status' ? 'bg-gray-300' :
+                            'bg-gray-300'
+                          }`}></span>
+                          {option.label}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                {/* Clear Filter Button - only show when filter is active */}
+                {statusFilter && statusFilter !== 'Show All' && (
+                  <button
+                    onClick={clearStatusFilter}
+                    className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                    title="Clear filter"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Right Side Controls */}
@@ -1376,6 +1580,7 @@ export default function ActiveBatchPage() {
                         order={order}
                         onRemove={handleRemoveOrder}
                         onUpdateAddress={handleUpdateAddress}
+                        onUpdateStatus={handleUpdateStatus}
                         size="horizontal-large"
                       />
                     ))}
@@ -1392,6 +1597,7 @@ export default function ActiveBatchPage() {
                       order={order}
                       onRemove={handleRemoveOrder}
                       onUpdateAddress={handleUpdateAddress}
+                      onUpdateStatus={handleUpdateStatus}
                       size="medium"
                       className="w-full"
                     />
@@ -1439,6 +1645,7 @@ export default function ActiveBatchPage() {
                       order={orders[currentOrderIndex]}
                       onRemove={handleRemoveOrder}
                       onUpdateAddress={handleUpdateAddress}
+                      onUpdateStatus={handleUpdateStatus}
                       size="one-by-one-huge"
                       className="mx-auto w-full sm:w-auto"
                     />

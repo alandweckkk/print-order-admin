@@ -7,6 +7,7 @@ export interface BatchOrder {
   stripe_payment_id: string;
   batch_id: string;
   sticker_sheet_url?: string | null;
+  status?: string | null; // From z_print_order_management.status
   // Order data from joined tables
   pmo_order_number?: string | null;
   pmo_email?: string | null;
@@ -17,15 +18,22 @@ export interface BatchOrder {
   mr_id?: string | null;
 }
 
-export async function fetchBatchOrders(batchId: string): Promise<{ orders: BatchOrder[], error?: string }> {
+export async function fetchBatchOrders(batchId: string, statusFilter?: string): Promise<{ orders: BatchOrder[], error?: string }> {
   try {
     const supabase = await createAdminClient();
     
-    // Get management records for this batch
-    const { data: managementRecords, error: managementError } = await supabase
+    // Get management records for this batch with optional status filter
+    let query = supabase
       .from('z_print_order_management')
       .select('*')
       .eq('batch_id', batchId);
+    
+    // Apply status filter if provided
+    if (statusFilter && statusFilter !== 'Show All') {
+      query = query.eq('status', statusFilter);
+    }
+    
+    const { data: managementRecords, error: managementError } = await query;
 
     if (managementError) {
       console.error('Error fetching management records:', managementError);
@@ -100,6 +108,7 @@ export async function fetchBatchOrders(batchId: string): Promise<{ orders: Batch
         stripe_payment_id: managementRecord.stripe_payment_id,
         batch_id: managementRecord.batch_id,
         sticker_sheet_url: managementRecord.sticker_sheet_url || null,
+        status: managementRecord.status || null, // Include z_print_order_management.status
         pmo_order_number: matchingOrder?.order_number || null,
         pmo_email: matchingOrder?.email || null,
         pmo_status: matchingOrder?.status || null,
