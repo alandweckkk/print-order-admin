@@ -7,10 +7,10 @@ export async function updateShippingAddress(stripePaymentId: string, newAddress:
   try {
     const supabase = await createAdminClient();
     
-    // Sanitize the address - convert empty strings to null for optional fields
+    // Sanitize the address - convert empty strings to undefined for optional fields
     const sanitizedAddress: ShippingAddress = {
       ...newAddress,
-      line2: newAddress.line2?.trim() === '' ? null : newAddress.line2,
+      line2: newAddress.line2?.trim() === '' ? undefined : newAddress.line2,
       // Also trim whitespace from other fields for consistency
       name: newAddress.name?.trim() || '',
       line1: newAddress.line1?.trim() || '',

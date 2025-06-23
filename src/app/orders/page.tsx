@@ -24,7 +24,7 @@ import { updatePhysicalMailOrder } from './actions/update-physical-mail-order';
 import { updateModelRun } from './actions/update-model-run';
 import { updateStripeEvent } from './actions/update-stripe-event';
 import { updateShippingAddress } from '../active-batch/actions/update-shipping-address';
-import { ShippingAddress } from '@/lib/data-transformations';
+import { ShippingAddress, formatShippingAddress } from '@/lib/data-transformations';
 
 export default function OrdersPage() {
   const [events, setEvents] = useState<CombinedOrderEvent[]>([]);
@@ -773,7 +773,7 @@ export default function OrdersPage() {
   };
 
   // Address editing helper functions
-  const parseShippingAddress = (addressData: any): ShippingAddress => {
+  const parseShippingAddress = (addressData: unknown): ShippingAddress => {
     if (!addressData) {
       return {
         name: '',
@@ -787,15 +787,16 @@ export default function OrdersPage() {
     }
 
     // If it's already a structured object
-    if (typeof addressData === 'object') {
+    if (typeof addressData === 'object' && addressData !== null) {
+      const addr = addressData as Partial<ShippingAddress>;
       return {
-        name: addressData.name || '',
-        line1: addressData.line1 || '',
-        line2: addressData.line2 || '',
-        city: addressData.city || '',
-        state: addressData.state || '',
-        postal_code: addressData.postal_code || '',
-        country: addressData.country || 'US'
+        name: addr.name || '',
+        line1: addr.line1 || '',
+        line2: addr.line2 || '',
+        city: addr.city || '',
+        state: addr.state || '',
+        postal_code: addr.postal_code || '',
+        country: addr.country || 'US'
       };
     }
 
@@ -882,19 +883,19 @@ export default function OrdersPage() {
         return;
       }
 
-      // Update the local state
+      // Update the local state (format as string to match data fetch pattern)
       setSelectedEventDetails(prev => {
         if (!prev) return prev;
         return {
           ...prev,
-          pmo_shipping_address: addressFormData
+          pmo_shipping_address: formatShippingAddress(addressFormData) || null
         };
       });
 
-      // Update the events list as well
+      // Update the events list as well  
       setEvents(prev => prev.map(event => 
         event.id === selectedEventDetails.id 
-          ? { ...event, pmo_shipping_address: addressFormData }
+          ? { ...event, pmo_shipping_address: formatShippingAddress(addressFormData) || null }
           : event
       ));
 
