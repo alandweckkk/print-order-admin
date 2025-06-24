@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Settings, Layout, Tag, Users, Plus, Trash2, Check } from "lucide-react";
 import { getAllAdminProfiles, createAdminProfile, deleteAdminProfile } from "@/app/orders/actions/admin-profiles";
 import { syncNewOrders } from "@/app/orders/actions/sync-new-orders";
-import Notes from "@/components/Notes";
+
 
 interface MenuItem {
   label: string;
@@ -292,9 +292,6 @@ export default function Navigation() {
           >
             Address Cleanup
           </Button>
-          
-          {/* Notes Button */}
-          <Notes />
           
           {/* Sync Status Message */}
           {syncMessage && (
