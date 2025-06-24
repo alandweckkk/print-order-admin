@@ -25,6 +25,7 @@ import { updateModelRun } from './actions/update-model-run';
 import { updateStripeEvent } from './actions/update-stripe-event';
 import { updateShippingAddress } from '../active-batch/actions/update-shipping-address';
 import { ShippingAddress, formatShippingAddress } from '@/lib/data-transformations';
+import NotesModal from '@/components/NotesModal';
 
 export default function OrdersPage() {
   const [events, setEvents] = useState<CombinedOrderEvent[]>([]);
@@ -71,8 +72,12 @@ export default function OrdersPage() {
 
   // Add notes state for each row
   const [rowNotes, setRowNotes] = useState<Record<number, string>>({});
-  const [focusedNotesField, setFocusedNotesField] = useState<number | null>(null);
   const [savingNotes, setSavingNotes] = useState<Record<number, boolean>>({});
+  
+  // Notes modal state
+  const [showNotesModal, setShowNotesModal] = useState(false);
+  const [editingNotesEventId, setEditingNotesEventId] = useState<number | null>(null);
+  const [notesModalInitialValue, setNotesModalInitialValue] = useState<string>('');
 
   // Add inline editing state for modal fields
   const [editingField, setEditingField] = useState<{
@@ -987,6 +992,19 @@ export default function OrdersPage() {
     }
   };
 
+  // Notes modal handlers
+  const handleOpenNotesModal = (eventId: number, currentNotes: string) => {
+    setEditingNotesEventId(eventId);
+    setNotesModalInitialValue(currentNotes);
+    setShowNotesModal(true);
+  };
+
+  const handleCloseNotesModal = () => {
+    setShowNotesModal(false);
+    setEditingNotesEventId(null);
+    setNotesModalInitialValue('');
+  };
+
   // Manual save notes function
   const handleSaveNotes = async (eventId: number, notes: string) => {
     const event = filteredData.find(e => e.id === eventId);
@@ -1003,11 +1021,16 @@ export default function OrdersPage() {
       if (stripePaymentId) {
         const result = await updateOrderNotes(stripePaymentId, notes);
         if (result.success) {
+          // Update local state
+          setRowNotes(prev => ({ ...prev, [eventId]: notes }));
+          
           setToastMessage('Notes saved successfully');
           setToastType('success');
           setShowToast(true);
           setTimeout(() => setShowToast(false), 3000);
-          setFocusedNotesField(null); // Hide save button after successful save
+          
+          // Close modal
+          handleCloseNotesModal();
         } else {
           console.error('Failed to save notes:', result.error);
           setToastMessage('Failed to save notes');
@@ -1029,6 +1052,12 @@ export default function OrdersPage() {
       setTimeout(() => setShowToast(false), 3000);
     } finally {
       setSavingNotes(prev => ({ ...prev, [eventId]: false }));
+    }
+  };
+
+  const handleSaveNotesFromModal = (notes: string) => {
+    if (editingNotesEventId !== null) {
+      handleSaveNotes(editingNotesEventId, notes);
     }
   };
 
@@ -1884,8 +1913,8 @@ export default function OrdersPage() {
                         </th>
                       ))}
                       <th className="text-left p-3 font-medium text-orange-600 whitespace-nowrap" style={{ width: '200px', fontSize: '10px' }}>Status</th>
-                      <th className="text-left p-3 font-medium text-orange-600 whitespace-nowrap" style={{ width: '200px', fontSize: '10px' }}>Notes</th>
-                      <th className="text-left p-3 font-medium text-orange-600 whitespace-nowrap" style={{ width: '200px', fontSize: '10px' }}>Batch Id</th>
+                      <th className="text-left p-3 font-medium text-orange-600 whitespace-nowrap" style={{ width: '300px', fontSize: '10px' }}>Notes</th>
+                      <th className="text-left p-3 font-medium text-orange-600 whitespace-nowrap" style={{ width: '100px', fontSize: '10px' }}>Batch Id</th>
                       <th className="text-left p-3 font-medium text-orange-600 whitespace-nowrap" style={{ width: '100px', fontSize: '10px' }}>Sticker Sheet</th>
                       <th className="text-center p-3 font-medium text-xs whitespace-nowrap overflow-hidden text-ellipsis" style={{ width: '60px', fontSize: '8px' }}>Actions</th>
                       <th className="text-center p-3 font-medium text-xs whitespace-nowrap text-red-600" style={{ width: '60px', fontSize: '8px' }}>Delete</th>
@@ -1967,44 +1996,45 @@ export default function OrdersPage() {
                            </Select>
                          </div>
                         </td>
-                        <td className="p-3 align-middle" style={{ width: '200px' }}>
+                        <td className="p-3 align-middle group relative" style={{ width: '300px' }}>
                           <div className="relative">
-                            <input
-                              type="text"
-                              value={rowNotes[event.id] || event.order_notes || ''}
-                              onChange={(e) => {
-                                const newValue = e.target.value;
-                                setRowNotes(prev => ({ ...prev, [event.id]: newValue }));
+                            <div 
+                              className="text-xs text-gray-700 cursor-pointer hover:bg-gray-50 rounded px-2 py-1 min-h-[24px] flex items-center"
+                              style={{
+                                display: '-webkit-box',
+                                WebkitLineClamp: 3,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden',
+                                lineHeight: '1.2'
                               }}
-                              onFocus={() => setFocusedNotesField(event.id)}
-                              onBlur={() => {
-                                // Hide save button after a short delay to allow save button click
-                                setTimeout(() => setFocusedNotesField(null), 150);
-                              }}
-                              placeholder="Write notes..."
-                              className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 pr-8"
-                            />
-                            {focusedNotesField === event.id && (
+                              onClick={() => handleOpenNotesModal(event.id, rowNotes[event.id] || event.order_notes || '')}
+                            >
+                              {rowNotes[event.id] || event.order_notes || ''}
+                            </div>
+                            
+                            {/* Hover pencil icon */}
+                            <div className="absolute top-1/2 right-1 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 pointer-events-auto">
                               <button
-                                onClick={() => handleSaveNotes(event.id, rowNotes[event.id] || event.order_notes || '')}
-                                disabled={savingNotes[event.id]}
-                                className="absolute right-1 top-1/2 transform -translate-y-1/2 p-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors disabled:opacity-50"
-                                title="Save notes"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenNotesModal(event.id, rowNotes[event.id] || event.order_notes || '');
+                                }}
+                                className="bg-white border border-gray-300 rounded shadow-sm p-1 hover:bg-gray-50 hover:border-gray-400 transition-colors"
+                                title="Edit notes"
                               >
-                                {savingNotes[event.id] ? (
-                                  <svg className="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                  </svg>
-                                ) : (
-                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                                  </svg>
-                                )}
+                                <svg 
+                                  className="w-3 h-3 text-gray-500 hover:text-gray-700" 
+                                  fill="none" 
+                                  stroke="currentColor" 
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                </svg>
                               </button>
-                            )}
+                            </div>
                           </div>
                         </td>
-                        <td className="p-3 align-middle" style={{ width: '200px' }}>
+                        <td className="p-3 align-middle" style={{ width: '100px' }}>
                           <div 
                             className="text-xs text-gray-600 font-mono cursor-pointer hover:bg-gray-100 rounded px-1 py-0.5 transition-colors"
                             onClick={async (e) => {
@@ -2170,6 +2200,15 @@ export default function OrdersPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Notes Modal */}
+        <NotesModal
+          isOpen={showNotesModal}
+          onClose={handleCloseNotesModal}
+          onSave={handleSaveNotesFromModal}
+          initialNotes={notesModalInitialValue}
+          isSaving={editingNotesEventId !== null && savingNotes[editingNotesEventId] || false}
+        />
 
         {/* View Details Modal */}
         <Dialog open={showDetailsModal} onOpenChange={setShowDetailsModal}>
