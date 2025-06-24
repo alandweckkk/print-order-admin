@@ -128,6 +128,8 @@ export default function OrdersPage() {
     { value: 'Sticker Printed', label: 'Sticker Printed' },
     { value: 'Sticker Printing Ready', label: 'Sticker Printing Ready' },
     { value: 'Printed', label: 'Printed' },
+    { value: 'Packaged - Contact User', label: 'Packaged - Contact User' },
+    { value: 'Packaged - User Contacted', label: 'Packaged - User Contacted' },
     { value: 'Done', label: 'Done' }
   ];
 
@@ -1662,6 +1664,8 @@ export default function OrdersPage() {
                             filterDropdownValue === 'Sticker Printed' ? 'bg-teal-500' :
                             filterDropdownValue === 'Sticker Printing Ready' ? 'bg-cyan-500' :
                             filterDropdownValue === 'Printed' ? 'bg-lime-500' :
+                            filterDropdownValue === 'Packaged - Contact User' ? 'bg-indigo-500' :
+                            filterDropdownValue === 'Packaged - User Contacted' ? 'bg-violet-500' :
                             filterDropdownValue === 'Done' ? 'bg-emerald-500' :
                             filterDropdownValue === 'No Status' ? 'bg-gray-300' :
                             'bg-gray-300'
@@ -1692,18 +1696,20 @@ export default function OrdersPage() {
                             option.value === 'Hide' ? 'bg-red-500' :
                             option.value === 'Batch In Progress' ? 'bg-orange-500' :
                             option.value === 'Sticker Printed' ? 'bg-teal-500' :
-                            option.value === 'Sticker Printing Ready' ? 'bg-cyan-500' :
-                            option.value === 'Printed' ? 'bg-lime-500' :
-                            option.value === 'Done' ? 'bg-emerald-500' :
-                            option.value === 'No Status' ? 'bg-gray-300' :
-                            'bg-gray-300'
-                          }`}></span>
-                          {option.label}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                                                                option.value === 'Sticker Printing Ready' ? 'bg-cyan-500' :
+                                    option.value === 'Printed' ? 'bg-lime-500' :
+                                    option.value === 'Packaged - Contact User' ? 'bg-indigo-500' :
+                                    option.value === 'Packaged - User Contacted' ? 'bg-violet-500' :
+                                    option.value === 'Done' ? 'bg-emerald-500' :
+                                    option.value === 'No Status' ? 'bg-gray-300' :
+                                    'bg-gray-300'
+                                  }`}></span>
+                                  {option.label}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                 
                 {/* Clear Filter Button - only show when filter is active */}
                 {filterDropdownValue && filterDropdownValue !== 'Show All' && (
@@ -1964,6 +1970,8 @@ export default function OrdersPage() {
                                    (event.batch_status === 'Sticker Printed') ? 'bg-teal-500' :
                                    (event.batch_status === 'Sticker Printing Ready') ? 'bg-cyan-500' :
                                    (event.batch_status === 'Printed') ? 'bg-lime-500' :
+                                   (event.batch_status === 'Packaged - Contact User') ? 'bg-indigo-500' :
+                                   (event.batch_status === 'Packaged - User Contacted') ? 'bg-violet-500' :
                                    (event.batch_status === 'Done') ? 'bg-emerald-500' :
                                    'bg-gray-300'
                                  }`}></span>
@@ -1982,9 +1990,11 @@ export default function OrdersPage() {
                                        option.value === 'Hide' ? 'bg-red-500' :
                                        option.value === 'Batch In Progress' ? 'bg-orange-500' :
                                        option.value === 'Sticker Printed' ? 'bg-teal-500' :
-                                       option.value === 'Sticker Printing Ready' ? 'bg-cyan-500' :
-                                       option.value === 'Printed' ? 'bg-lime-500' :
-                                       option.value === 'Done' ? 'bg-emerald-500' :
+                                                                   option.value === 'Sticker Printing Ready' ? 'bg-cyan-500' :
+                            option.value === 'Printed' ? 'bg-lime-500' :
+                            option.value === 'Packaged - Contact User' ? 'bg-indigo-500' :
+                            option.value === 'Packaged - User Contacted' ? 'bg-violet-500' :
+                            option.value === 'Done' ? 'bg-emerald-500' :
                                        option.value === 'No Status' ? 'bg-gray-300' :
                                        'bg-gray-300'
                                      }`}></span>
@@ -2500,6 +2510,8 @@ export default function OrdersPage() {
                                 (selectedEventDetails.batch_status === 'Sticker Printed') ? 'bg-teal-500' :
                                 (selectedEventDetails.batch_status === 'Sticker Printing Ready') ? 'bg-cyan-500' :
                                 (selectedEventDetails.batch_status === 'Printed') ? 'bg-lime-500' :
+                                (selectedEventDetails.batch_status === 'Packaged - Contact User') ? 'bg-indigo-500' :
+                                (selectedEventDetails.batch_status === 'Packaged - User Contacted') ? 'bg-violet-500' :
                                 (selectedEventDetails.batch_status === 'Done') ? 'bg-emerald-500' :
                                 'bg-gray-300'
                               }`}></span>
@@ -2518,19 +2530,21 @@ export default function OrdersPage() {
                                     option.value === 'Hide' ? 'bg-red-500' :
                                     option.value === 'Batch In Progress' ? 'bg-orange-500' :
                                     option.value === 'Sticker Printed' ? 'bg-teal-500' :
-                                    option.value === 'Sticker Printing Ready' ? 'bg-cyan-500' :
-                                    option.value === 'Printed' ? 'bg-lime-500' :
-                                    option.value === 'Done' ? 'bg-emerald-500' :
-                                    option.value === 'No Status' ? 'bg-gray-300' :
-                                    'bg-gray-300'
-                                  }`}></span>
-                                  {option.label}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                                                                           option.value === 'Sticker Printing Ready' ? 'bg-cyan-500' :
+                                       option.value === 'Printed' ? 'bg-lime-500' :
+                                       option.value === 'Packaged - Contact User' ? 'bg-indigo-500' :
+                                       option.value === 'Packaged - User Contacted' ? 'bg-violet-500' :
+                                       option.value === 'Done' ? 'bg-emerald-500' :
+                                       option.value === 'No Status' ? 'bg-gray-300' :
+                                       'bg-gray-300'
+                                     }`}></span>
+                                    {option.label}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                                         </SelectContent>
+                           </Select>
+                         </div>
                     </div>
 
                     {/* Notes */}

@@ -11,9 +11,12 @@ export async function updateOrderNotes(stripePaymentId: string, notes: string): 
   try {
     const supabase = await createAdminClient();
 
+    // Convert empty string to null for cleaner database storage
+    const noteValue = notes.trim() === '' ? null : notes;
+
     const { error } = await supabase
       .from('z_print_order_management')
-      .update({ order_notes: notes })
+      .update({ order_notes: noteValue })
       .eq('stripe_payment_id', stripePaymentId);
 
     if (error) {
@@ -24,7 +27,7 @@ export async function updateOrderNotes(stripePaymentId: string, notes: string): 
       };
     }
 
-    console.log(`✅ Updated notes for payment ${stripePaymentId}`);
+    console.log(`✅ Updated notes for payment ${stripePaymentId}${noteValue === null ? ' (cleared to NULL)' : ''}`);
     
     return {
       success: true

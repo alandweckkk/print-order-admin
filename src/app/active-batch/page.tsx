@@ -366,6 +366,8 @@ function OrderCard({ order, onRemove, onUpdateAddress, onUpdateStatus, className
                       order.status === 'Sticker Printed' ? 'bg-teal-500' :
                       order.status === 'Sticker Printing Ready' ? 'bg-cyan-500' :
                       order.status === 'Printed' ? 'bg-lime-500' :
+                      order.status === 'Packaged - Contact User' ? 'bg-indigo-500' :
+                      order.status === 'Packaged - User Contacted' ? 'bg-violet-500' :
                       order.status === 'Done' ? 'bg-emerald-500' :
                       order.status === 'No Status' ? 'bg-gray-300' :
                       'bg-gray-300'
@@ -386,6 +388,8 @@ function OrderCard({ order, onRemove, onUpdateAddress, onUpdateStatus, className
                   { value: 'Sticker Printed', label: 'Sticker Printed' },
                   { value: 'Sticker Printing Ready', label: 'Sticker Printing Ready' },
                   { value: 'Printed', label: 'Printed' },
+                  { value: 'Packaged - Contact User', label: 'Packaged - Contact User' },
+                  { value: 'Packaged - User Contacted', label: 'Packaged - User Contacted' },
                   { value: 'Done', label: 'Done' }
                 ].map((option) => (
                   <SelectItem key={option.value} value={option.value}>
@@ -400,6 +404,8 @@ function OrderCard({ order, onRemove, onUpdateAddress, onUpdateStatus, className
                         option.value === 'Sticker Printed' ? 'bg-teal-500' :
                         option.value === 'Sticker Printing Ready' ? 'bg-cyan-500' :
                         option.value === 'Printed' ? 'bg-lime-500' :
+                        option.value === 'Packaged - Contact User' ? 'bg-indigo-500' :
+                        option.value === 'Packaged - User Contacted' ? 'bg-violet-500' :
                         option.value === 'Done' ? 'bg-emerald-500' :
                         option.value === 'No Status' ? 'bg-gray-300' :
                         'bg-gray-300'
@@ -746,6 +752,8 @@ export default function ActiveBatchPage() {
     { value: 'Sticker Printed', label: 'Sticker Printed' },
     { value: 'Sticker Printing Ready', label: 'Sticker Printing Ready' },
     { value: 'Printed', label: 'Printed' },
+    { value: 'Packaged - Contact User', label: 'Packaged - Contact User' },
+    { value: 'Packaged - User Contacted', label: 'Packaged - User Contacted' },
     { value: 'Done', label: 'Done' }
   ];
 
@@ -1440,6 +1448,8 @@ export default function ActiveBatchPage() {
                             statusFilter === 'Sticker Printed' ? 'bg-teal-500' :
                             statusFilter === 'Sticker Printing Ready' ? 'bg-cyan-500' :
                             statusFilter === 'Printed' ? 'bg-lime-500' :
+                            statusFilter === 'Packaged - Contact User' ? 'bg-indigo-500' :
+                            statusFilter === 'Packaged - User Contacted' ? 'bg-violet-500' :
                             statusFilter === 'Done' ? 'bg-emerald-500' :
                             statusFilter === 'No Status' ? 'bg-gray-300' :
                             'bg-gray-300'
@@ -1472,6 +1482,8 @@ export default function ActiveBatchPage() {
                             option.value === 'Sticker Printed' ? 'bg-teal-500' :
                             option.value === 'Sticker Printing Ready' ? 'bg-cyan-500' :
                             option.value === 'Printed' ? 'bg-lime-500' :
+                            option.value === 'Packaged - Contact User' ? 'bg-indigo-500' :
+                            option.value === 'Packaged - User Contacted' ? 'bg-violet-500' :
                             option.value === 'Done' ? 'bg-emerald-500' :
                             option.value === 'No Status' ? 'bg-gray-300' :
                             'bg-gray-300'
