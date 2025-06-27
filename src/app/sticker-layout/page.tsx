@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Link } from 'lucide-react';
+import { Link, Upload, X } from 'lucide-react';
+import { uploadFileToBlob } from './actions/process-image-url-to-blob';
 
 export default function StickerLayoutPage() {
   const [loading, setLoading] = useState(false);
@@ -13,6 +14,9 @@ export default function StickerLayoutPage() {
   const [imageUrl, setImageUrl] = useState('');
   const [layout, setLayout] = useState<'2-up' | '3-up'>('3-up');
   const [resultLayout, setResultLayout] = useState<'2-up' | '3-up'>('3-up');
+  const [isDragging, setIsDragging] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [uploadLoading, setUploadLoading] = useState(false);
 
   const processImageUrl = async (imageUrl: string) => {
     setLoading(true);
@@ -72,6 +76,70 @@ export default function StickerLayoutPage() {
     setOutputImageUrl(null);
     setError(null);
     setImageUrl('');
+    setPreviewImage(null);
+    setUploadLoading(false);
+  };
+
+  // File handling functions
+  const handleFileToBlob = useCallback(async (file: File) => {
+    setUploadLoading(true);
+    setError(null);
+
+    try {
+      // Upload file to Vercel Blob storage
+      const result = await uploadFileToBlob(file);
+
+      if (!result.success) {
+        setError(result.error || 'Failed to upload file');
+        return;
+      }
+
+      // Set the public blob URL in the input field
+      setImageUrl(result.blobUrl!);
+      setPreviewImage(result.blobUrl!);
+
+      console.log('✅ File uploaded to blob storage:', result.blobUrl);
+    } catch (err) {
+      console.error('Error uploading file:', err);
+      setError('Failed to upload file. Please try again.');
+    } finally {
+      setUploadLoading(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      handleFileToBlob(files[0]);
+    }
+  }, [handleFileToBlob]);
+
+  const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      handleFileToBlob(files[0]);
+    }
+  }, [handleFileToBlob]);
+
+  const clearPreview = () => {
+    setPreviewImage(null);
+    setImageUrl('');
   };
 
   return (
@@ -79,10 +147,93 @@ export default function StickerLayoutPage() {
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Sticker Sheet Layout</h1>
-          <p className="text-gray-600 mt-2">Enter an image URL to create a {layout} vertical sticker sheet that&apos;s print-ready</p>
+          <p className="text-gray-600 mt-2">Drop an image or enter an image URL to create a {layout} vertical sticker sheet that&apos;s print-ready</p>
         </div>
 
         <div className="space-y-6">
+          {/* Drop Zone Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Upload className="h-5 w-5" />
+                Drop Image File
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div
+                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                  isDragging
+                    ? 'border-blue-400 bg-blue-50'
+                    : 'border-gray-300 hover:border-gray-400'
+                } ${loading || uploadLoading ? 'opacity-50 pointer-events-none' : ''}`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                {uploadLoading ? (
+                  <div className="space-y-4">
+                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                    <div>
+                      <p className="text-lg font-medium text-gray-700">
+                        Uploading image...
+                      </p>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Please wait while we upload your file
+                      </p>
+                    </div>
+                  </div>
+                ) : previewImage ? (
+                  <div className="space-y-4">
+                    <div className="relative inline-block">
+                      <img
+                        src={previewImage}
+                        alt="Preview"
+                        className="max-w-full max-h-48 mx-auto rounded-lg shadow-md"
+                      />
+                      <button
+                        onClick={clearPreview}
+                        className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 shadow-lg transition-colors"
+                        disabled={loading || uploadLoading}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <p className="text-sm text-green-600">
+                      ✅ Image uploaded and ready! Click &quot;Create {layout} Sheet&quot; below to process.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <Upload className="h-12 w-12 text-gray-400 mx-auto" />
+                    <div>
+                      <p className="text-lg font-medium text-gray-700">
+                        Drop your image here
+                      </p>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Supports PNG, JPG, GIF, and other image formats
+                      </p>
+                    </div>
+                    <div>
+                      <label htmlFor="file-input">
+                        <Button variant="outline" className="cursor-pointer" disabled={loading || uploadLoading}>
+                          Browse Files
+                        </Button>
+                      </label>
+                      <input
+                        id="file-input"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileInputChange}
+                        className="hidden"
+                        disabled={loading || uploadLoading}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           {/* URL Input Section */}
           <Card>
             <CardHeader>
@@ -139,7 +290,7 @@ export default function StickerLayoutPage() {
                     type="url"
                     value={imageUrl}
                     onChange={(e) => setImageUrl(e.target.value)}
-                    placeholder="Enter image address URL"
+                    placeholder="Enter image address URL or drop an image above"
                     disabled={loading}
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm
                       focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
@@ -154,7 +305,7 @@ export default function StickerLayoutPage() {
                   </Button>
                 </div>
                 <p className="text-sm text-gray-500">
-                  Enter a direct URL to an image (must be publicly accessible)
+                  Enter a direct URL to an image (must be publicly accessible) or drop an image file above
                 </p>
               </div>
 

@@ -26,6 +26,7 @@ import { updateStripeEvent } from './actions/update-stripe-event';
 import { updateShippingAddress } from '../active-batch/actions/update-shipping-address';
 import { ShippingAddress, formatShippingAddress } from '@/lib/data-transformations';
 import NotesModal from '@/components/NotesModal';
+import EmailModal from '@/components/EmailModal';
 
 export default function OrdersPage() {
   const [events, setEvents] = useState<CombinedOrderEvent[]>([]);
@@ -115,6 +116,10 @@ export default function OrdersPage() {
     postal_code: '',
     country: 'US'
   });
+
+  // Add email modal state
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [selectedEmailEvent, setSelectedEmailEvent] = useState<CombinedOrderEvent | null>(null);
 
   // Status options matching the database values
   const statusOptions = [
@@ -1061,6 +1066,17 @@ export default function OrdersPage() {
     if (editingNotesEventId !== null) {
       handleSaveNotes(editingNotesEventId, notes);
     }
+  };
+
+  // Email modal handlers
+  const handleOpenEmailModal = (event: CombinedOrderEvent) => {
+    setSelectedEmailEvent(event);
+    setShowEmailModal(true);
+  };
+
+  const handleCloseEmailModal = () => {
+    setShowEmailModal(false);
+    setSelectedEmailEvent(null);
   };
 
   const handleSaveField = async (
@@ -2095,20 +2111,26 @@ export default function OrdersPage() {
                           </button>
                         </td>
                         <td className="text-center p-3 align-middle" style={{ width: '60px' }}>
-                          <svg 
-                            className="w-4 h-4 text-gray-400 mx-auto" 
-                            fill="none" 
-                            stroke="currentColor" 
-                            viewBox="0 0 24 24" 
-                            xmlns="http://www.w3.org/2000/svg"
+                          <button
+                            onClick={() => handleOpenEmailModal(event)}
+                            className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                            title="Send email"
                           >
-                            <path 
-                              strokeLinecap="round" 
-                              strokeLinejoin="round" 
-                              strokeWidth={2} 
-                              d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" 
-                            />
-                          </svg>
+                            <svg 
+                              className="w-4 h-4" 
+                              fill="none" 
+                              stroke="currentColor" 
+                              viewBox="0 0 24 24" 
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                                strokeWidth={2} 
+                                d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" 
+                              />
+                            </svg>
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -2635,6 +2657,13 @@ export default function OrdersPage() {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Email Modal */}
+        <EmailModal
+          isOpen={showEmailModal}
+          onClose={handleCloseEmailModal}
+          orderEvent={selectedEmailEvent}
+        />
 
         {/* Toast Notification */}
         {showToast && (

@@ -3,6 +3,49 @@
 import { put } from '@vercel/blob';
 import { createStickerSheetFromUrl } from '@/lib/image-processing';
 
+export async function uploadFileToBlob(
+  file: File
+): Promise<{ success: boolean; blobUrl?: string; error?: string }> {
+  try {
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      return {
+        success: false,
+        error: 'Please upload a valid image file (PNG, JPG, GIF, etc.)'
+      };
+    }
+
+    // Generate filename
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const extension = file.name.split('.').pop() || 'png';
+    const filename = `input-image-${timestamp}.${extension}`;
+
+    // Convert File to ArrayBuffer then to Buffer
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // Upload to Vercel Blob
+    const blob = await put(filename, buffer, {
+      access: 'public',
+      contentType: file.type,
+    });
+
+    console.log(`✅ Uploaded file to blob storage: ${blob.url}`);
+
+    return {
+      success: true,
+      blobUrl: blob.url
+    };
+
+  } catch (error) {
+    console.error('❌ Error uploading file to blob:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to upload file'
+    };
+  }
+}
+
 export async function processImageUrlToBlob(
   imageUrl: string,
   filename?: string,
