@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Settings, Layout, Tag, Users, Plus, Trash2, Check } from "lucide-react";
+import { Settings, Layout, Tag, Users, Plus, Trash2, Check, Mail } from "lucide-react";
 import { getAllAdminProfiles, createAdminProfile, deleteAdminProfile } from "@/app/orders/actions/admin-profiles";
 import { syncNewOrders } from "@/app/orders/actions/sync-new-orders";
 
@@ -65,6 +65,12 @@ export default function Navigation() {
       path: "/sticker-layout",
       icon: Layout,
       description: "Create 3-up sticker sheets"
+    },
+    {
+      label: "Envelopes",
+      path: "/envelopes",
+      icon: Mail,
+      description: "Create addressed envelopes"
     },
     {
       label: "Labels",
